@@ -1,26 +1,48 @@
 import React, { useState } from 'react';
-import { Navbar, Nav, Container, Button, Form, Row, Col, Card } from 'react-bootstrap';
-import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
+import { Navbar, Nav, Container, Button, Form, Row, Col, Card, NavDropdown } from 'react-bootstrap';
+import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation } from 'react-router-dom';
 import Hostels from './pages/Hostels';
 import HostelDetails from './pages/HostelDetails';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import LandlordDashboard from './pages/LandlordDashboard';
+import StudentDashboard from './pages/StudentDashboard';
+import { AuthProvider, useAuth } from './auth/AuthContext';
+import ProtectedRoute from './auth/ProtectedRoute';
 
 /**
  * Hostel Connect - Landing Page
  */
 
 // =============================================================================
-// COMPONENT: Navbar (Sticky, Responsive)
+// COMPONENT: Navigation (Sticky, Responsive)
 // =============================================================================
 const Navigation = () => {
   const [expanded, setExpanded] = useState(false);
+  const { user, isAuthenticated, logout } = useAuth();
+  const location = useLocation();
+  
+  // Hide navbar on landlord/student dashboard routes
+  const isDashboardRoute = location.pathname.startsWith('/landlord/') || location.pathname.startsWith('/student/');
+  if (isDashboardRoute) {
+    return null;
+  }
 
   const navLinks = [
     { href: '/', label: 'Home' },
     { href: '/hostels', label: 'Find Hostels' },
     { href: '/#how-it-works', label: 'How It Works', isAnchor: true },
   ];
+
+  // Show landlord/admin links only for authenticated users with appropriate roles
+  if (isAuthenticated && (user?.role === 'landlord' || user?.role === 'admin')) {
+    navLinks.push({ href: '/landlord/dashboard', label: 'Dashboard' });
+  }
+
+  // Show student dashboard link for authenticated students
+  if (isAuthenticated && user?.role === 'student') {
+    navLinks.push({ href: '/student/dashboard', label: 'My Dashboard' });
+  }
 
   return (
     <Navbar
@@ -56,24 +78,46 @@ const Navigation = () => {
             ))}
           </Nav>
 
-          <div className="d-flex flex-column flex-lg-row gap-2 mt-3 mt-lg-0">
-            <Button
-              variant="outline-primary"
-              className="btn-outline-custom"
-              as={Link}
-              to="/login"
-            >
-              Login
-            </Button>
-            <Button
-              variant="primary"
-              className="btn-register"
-              as={Link}
-              to="/register"
-            >
-              Register
-            </Button>
-          </div>
+          {/* Show login/register for guests, user menu for authenticated users */}
+          {!isAuthenticated ? (
+            <div className="d-flex flex-column flex-lg-row gap-2 mt-3 mt-lg-0">
+              <Button
+                variant="outline-primary"
+                className="btn-outline-custom"
+                as={Link}
+                to="/login"
+              >
+                Login
+              </Button>
+              <Button
+                variant="primary"
+                className="btn-register"
+                as={Link}
+                to="/register"
+              >
+                Register
+              </Button>
+            </div>
+          ) : (
+            <Nav className="d-flex flex-column flex-lg-row gap-2 mt-3 mt-lg-0 align-items-center">
+              <span className="text-muted small mb-2 mb-lg-0">
+                <i className="bi bi-person-circle me-1"></i>
+                {user?.name || user?.email}
+                <span className="badge bg-secondary ms-1">{user?.role}</span>
+              </span>
+              <Button
+                variant="outline-danger"
+                size="sm"
+                onClick={() => {
+                  logout();
+                  setExpanded(false);
+                }}
+              >
+                <i className="bi bi-box-arrow-right me-1"></i>
+                Logout
+              </Button>
+            </Nav>
+          )}
         </Navbar.Collapse>
       </Container>
     </Navbar>
@@ -741,33 +785,157 @@ const Footer = () => {
 };
 
 // =============================================================================
+// EXAMPLE: Admin Dashboard Component (Protected Route Example)
+// =============================================================================
+const AdminDashboard = () => {
+  const { user } = useAuth();
+  
+  return (
+    <Container className="py-5 mt-5">
+      <h1 className="mb-4">
+        <i className="bi bi-shield-gear me-2"></i>
+        Admin Dashboard
+      </h1>
+      <Row>
+        <Col md={3}>
+          <Card className="text-center mb-3">
+            <Card.Body>
+              <h3>150</h3>
+              <p className="text-muted mb-0">Total Users</p>
+            </Card.Body>
+          </Card>
+        </Col>
+        <Col md={3}>
+          <Card className="text-center mb-3">
+            <Card.Body>
+              <h3>45</h3>
+              <p className="text-muted mb-0">Pending Approvals</p>
+            </Card.Body>
+          </Card>
+        </Col>
+        <Col md={3}>
+          <Card className="text-center mb-3">
+            <Card.Body>
+              <h3>12</h3>
+              <p className="text-muted mb-0">Reports</p>
+            </Card.Body>
+          </Card>
+        </Col>
+        <Col md={3}>
+          <Card className="text-center mb-3">
+            <Card.Body>
+              <h3>89</h3>
+              <p className="text-muted mb-0">Active Listings</p>
+            </Card.Body>
+          </Card>
+        </Col>
+      </Row>
+    </Container>
+  );
+};
+
+// =============================================================================
+// EXAMPLE: Student Profile Component (Protected Route Example)
+// =============================================================================
+const StudentProfile = () => {
+  const { user } = useAuth();
+  
+  return (
+    <Container className="py-5 mt-5">
+      <h1 className="mb-4">
+        <i className="bi bi-person-circle me-2"></i>
+        My Profile
+      </h1>
+      <Row>
+        <Col md={6}>
+          <Card>
+            <Card.Body>
+              <h5>Account Information</h5>
+              <hr />
+              <p><strong>Name:</strong> {user?.name || 'N/A'}</p>
+              <p><strong>Email:</strong> {user?.email}</p>
+              <p><strong>Role:</strong> <span className="badge bg-primary">{user?.role}</span></p>
+              <p><strong>User ID:</strong> {user?.id}</p>
+            </Card.Body>
+          </Card>
+        </Col>
+      </Row>
+    </Container>
+  );
+};
+
+// =============================================================================
 // MAIN APP COMPONENT
 // =============================================================================
 function App() {
   return (
-    <Router>
-      <div className="App">
-        <Navigation />
-        <Routes>
-          <Route path="/" element={
-            <>
-              <HeroSection />
-              <ProblemSection />
-              <SolutionSection />
-              <HowItWorksSection />
-              <FeaturesSection />
-              <TrustSection />
-              <CTASection />
-              <Footer />
-            </>
-          } />
-          <Route path="/hostels" element={<Hostels />} />
-          <Route path="/hostels/:id" element={<HostelDetails />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-        </Routes>
-      </div>
-    </Router>
+    <AuthProvider>
+      <Router>
+        <div className="App">
+          <Navigation />
+          <Routes>
+            {/* Public Routes */}
+            <Route path="/" element={
+              <>
+                <HeroSection />
+                <ProblemSection />
+                <SolutionSection />
+                <HowItWorksSection />
+                <FeaturesSection />
+                <TrustSection />
+                <CTASection />
+                <Footer />
+              </>
+            } />
+            <Route path="/hostels" element={<Hostels />} />
+            <Route path="/hostels/:id" element={<HostelDetails />} />
+            
+            {/* Public Auth Routes - Redirect to home if already authenticated */}
+            <Route path="/login" element={
+              <ProtectedRoute requireAuth={false}>
+                <Login />
+              </ProtectedRoute>
+            } />
+            <Route path="/register" element={
+              <ProtectedRoute requireAuth={false}>
+                <Register />
+              </ProtectedRoute>
+            } />
+
+            {/* Protected Routes - Student */}
+            <Route path="/profile" element={
+              <ProtectedRoute allowedRoles={['student', 'landlord', 'admin']}>
+                <StudentProfile />
+              </ProtectedRoute>
+            } />
+
+            {/* Protected Routes - Landlord Only */}
+            <Route path="/landlord/dashboard" element={
+              <ProtectedRoute allowedRoles={['landlord']}>
+                <LandlordDashboard />
+              </ProtectedRoute>
+            } />
+
+            {/* Protected Routes - Student Only */}
+            <Route path="/student/dashboard" element={
+              <ProtectedRoute allowedRoles={['student']}>
+                <StudentDashboard />
+              </ProtectedRoute>
+            } />
+
+            {/* Protected Routes - Admin Only */}
+            {/* <Route path="/admin" element={{ */}
+            {/*   <ProtectedRoute allowedRoles={['admin']}>{{ */}
+            {/*     <AdminDashboard /> */}
+            {/*   </ProtectedRoute> */}
+            {/* }} /> */}
+
+            {/* Fallback for unknown routes */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </div>
+      </Router>
+    </AuthProvider>
   );
 }
 
