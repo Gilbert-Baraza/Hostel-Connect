@@ -1,0 +1,1278 @@
+/**
+ * Hostel Connect - Custom Styles
+ * Additional styles for all pages including Auth (Login/Register)
+ */
+
+/* ==========================================================================
+   GLOBAL VARIABLES
+   ========================================================================== */
+
+:root {
+  --primary-color: #1a5f7a;
+  --primary-light: #57c5b6;
+  --primary-dark: #134b5f;
+  --secondary-color: #6c757d;
+  --accent-color: #57c5b6;
+  --success-color: #198754;
+  --warning-color: #ffc107;
+  --danger-color: #dc3545;
+  --info-color: #0dcaf0;
+  --white: #ffffff;
+  --light-bg: #f8f9fa;
+  --dark: #212529;
+  --gray-100: #f8f9fa;
+  --gray-200: #e9ecef;
+  --gray-300: #dee2e6;
+  --gray-400: #ced4da;
+  --gray-500: #adb5bd;
+  --gray-600: #6c757d;
+  --gray-700: #495057;
+  --gray-800: #343a40;
+  --gray-900: #212529;
+  --shadow-sm: 0 .125rem .25rem rgba(0,0,0,.075);
+  --shadow-md: 0 .5rem 1rem rgba(0,0,0,.15);
+  --shadow-lg: 0 1rem 3rem rgba(0,0,0,.175);
+  --transition: all 0.3s ease;
+}
+
+/* ==========================================================================
+   NAVBAR STYLES
+   ========================================================================== */
+
+.navbar-custom {
+  background: var(--white);
+  box-shadow: var(--shadow-sm);
+  padding: 15px 0;
+}
+
+.navbar-custom .navbar-brand {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--primary-color);
+}
+
+.navbar-custom .nav-link {
+  font-weight: 500;
+  color: var(--gray-700);
+  padding: 10px 15px !important;
+  transition: var(--transition);
+}
+
+.navbar-custom .nav-link:hover {
+  color: var(--primary-color);
+}
+
+.navbar-custom .btn-outline-custom {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+  font-weight: 600;
+  padding: 10px 20px;
+  border-radius: 8px;
+  transition: var(--transition);
+}
+
+.navbar-custom .btn-outline-custom:hover {
+  background: var(--primary-color);
+  color: var(--white);
+}
+
+.navbar-custom .btn-register {
+  background: var(--primary-color);
+  border-color: var(--primary-color);
+  color: var(--white);
+  font-weight: 600;
+  padding: 10px 20px;
+  border-radius: 8px;
+  transition: var(--transition);
+}
+
+.navbar-custom .btn-register:hover {
+  background: var(--primary-dark);
+  border-color: var(--primary-dark);
+  color: var(--white);
+}
+
+/* ==========================================================================
+   HERO SECTION
+   ========================================================================== */
+
+.hero-section {
+  background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-light) 100%);
+  padding: 150px 0 100px;
+  position: relative;
+}
+
+.hero-section::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+}
+
+.hero-section .hero-title {
+  font-size: 3rem;
+  font-weight: 800;
+  color: var(--white);
+  margin-bottom: 20px;
+  line-height: 1.2;
+}
+
+.hero-section .hero-subtitle {
+  font-size: 1.2rem;
+  color: rgba(255, 255, 255, 0.9);
+  margin-bottom: 30px;
+  line-height: 1.6;
+}
+
+.hero-section .trust-badge {
+  background: rgba(255, 255, 255, 0.2);
+  color: var(--white);
+  padding: 10px 20px;
+  border-radius: 50px;
+  font-weight: 600;
+  backdrop-filter: blur(10px);
+}
+
+.hero-section .search-bar {
+  background: var(--white);
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: var(--shadow-lg);
+}
+
+.hero-section .form-control,
+.hero-section .form-select {
+  border: 2px solid var(--gray-200);
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-size: 1rem;
+  transition: var(--transition);
+}
+
+.hero-section .form-control:focus,
+.hero-section .form-select:focus {
+  border-color: var(--primary-color);
+  box-shadow: none;
+}
+
+.hero-section .btn-search {
+  background: var(--primary-color);
+  color: var(--white);
+  padding: 12px 24px;
+  font-weight: 600;
+  border-radius: 8px;
+  border: none;
+  transition: var(--transition);
+}
+
+.hero-section .btn-search:hover {
+  background: var(--primary-dark);
+  color: var(--white);
+}
+
+/* ==========================================================================
+   SECTION STYLES
+   ========================================================================== */
+
+.section-padding {
+  padding: 80px 0;
+}
+
+.section-title {
+  font-size: 2.2rem;
+  font-weight: 700;
+  color: var(--primary-color);
+  margin-bottom: 15px;
+}
+
+.section-subtitle {
+  font-size: 1.1rem;
+  color: var(--gray-600);
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.bg-light {
+  background: var(--light-bg) !important;
+}
+
+/* ==========================================================================
+   ICON BOXES
+   ========================================================================== */
+
+.icon-box {
+  width: 60px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  font-size: 24px;
+}
+
+.icon-box-primary {
+  background: rgba(26, 95, 122, 0.1);
+  color: var(--primary-color);
+}
+
+.icon-box-secondary {
+  background: rgba(87, 197, 182, 0.1);
+  color: var(--accent-color);
+}
+
+.icon-box-accent {
+  background: linear-gradient(135deg, var(--primary-color) 0%, var(--accent-color) 100%);
+  color: var(--white);
+}
+
+/* ==========================================================================
+   PROBLEM CARDS
+   ========================================================================== */
+
+.problem-card {
+  border: none;
+  border-radius: 12px;
+  background: var(--white);
+  padding: 30px 20px;
+  box-shadow: var(--shadow-md);
+  transition: var(--transition);
+  height: 100%;
+}
+
+.problem-card:hover {
+  transform: translateY(-5px);
+  box-shadow: var(--shadow-lg);
+}
+
+/* ==========================================================================
+   FEATURE CARDS
+   ========================================================================== */
+
+.feature-card {
+  border: none;
+  border-radius: 12px;
+  background: var(--white);
+  padding: 30px;
+  box-shadow: var(--shadow-md);
+  transition: var(--transition);
+}
+
+.feature-card:hover {
+  transform: translateY(-5px);
+  box-shadow: var(--shadow-lg);
+}
+
+/* ==========================================================================
+   STEP ICONS
+   ========================================================================== */
+
+.step-icon {
+  width: 80px;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--white);
+  border-radius: 50%;
+  font-size: 32px;
+  color: var(--primary-color);
+  box-shadow: var(--shadow-md);
+  position: relative;
+}
+
+.step-icon .step-number {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  width: 28px;
+  height: 28px;
+  background: var(--primary-color);
+  color: var(--white);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+/* ==========================================================================
+   CTA SECTION
+   ========================================================================== */
+
+.cta-section {
+  background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+  padding: 80px 0;
+  text-align: center;
+}
+
+.cta-section .cta-title {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: var(--white);
+  margin-bottom: 20px;
+}
+
+.cta-section .cta-subtitle {
+  font-size: 1.2rem;
+  color: rgba(255, 255, 255, 0.9);
+  margin-bottom: 40px;
+}
+
+.cta-section .btn-light-custom {
+  background: var(--white);
+  color: var(--primary-color);
+  padding: 15px 30px;
+  font-weight: 600;
+  border-radius: 8px;
+  border: none;
+  transition: var(--transition);
+}
+
+.cta-section .btn-light-custom:hover {
+  background: var(--gray-100);
+  color: var(--primary-dark);
+}
+
+.cta-section .btn-outline-light-custom {
+  background: transparent;
+  color: var(--white);
+  padding: 15px 30px;
+  font-weight: 600;
+  border-radius: 8px;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  transition: var(--transition);
+}
+
+.cta-section .btn-outline-light-custom:hover {
+  background: var(--white);
+  color: var(--primary-color);
+  border-color: var(--white);
+}
+
+/* ==========================================================================
+   FOOTER
+   ========================================================================== */
+
+.footer-section {
+  background: var(--gray-900);
+  padding: 60px 0 30px;
+  color: var(--gray-400);
+}
+
+.footer-section .footer-brand h4 {
+  color: var(--white);
+}
+
+.footer-section .footer-title {
+  color: var(--white);
+  font-weight: 600;
+  margin-bottom: 20px;
+  font-size: 1.1rem;
+}
+
+.footer-section .footer-links {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.footer-section .footer-links li {
+  margin-bottom: 10px;
+}
+
+.footer-section .footer-links a {
+  color: var(--gray-400);
+  text-decoration: none;
+  transition: var(--transition);
+}
+
+.footer-section .footer-links a:hover {
+  color: var(--accent-color);
+}
+
+.footer-section .footer-bottom {
+  border-top: 1px solid var(--gray-700);
+  padding-top: 30px;
+  margin-top: 40px;
+}
+
+/* ==========================================================================
+   FADE IN ANIMATION
+   ========================================================================== */
+
+.fade-in {
+  animation: fadeIn 0.8s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ==========================================================================
+   HOSTEL LISTINGS PAGE STYLES
+   ========================================================================== */
+
+/* Page Header Section */
+.page-header-section {
+  background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-light) 100%);
+  padding: 100px 0 40px;
+  position: relative;
+}
+
+.page-header-content {
+  text-align: center;
+}
+
+.page-title {
+  font-size: 2.5rem;
+  font-weight: 800;
+  color: var(--white);
+  margin-bottom: 0.75rem;
+}
+
+.page-subtitle {
+  font-size: 1.1rem;
+  color: rgba(255, 255, 255, 0.9);
+  margin-bottom: 0;
+}
+
+/* Hostels Content Section */
+.hostels-content-section {
+  padding: 40px 0 80px;
+  background: var(--light-bg);
+  min-height: calc(100vh - 200px);
+}
+
+/* Search Bar Container */
+.search-bar-container {
+  background: var(--white);
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: var(--shadow-md);
+}
+
+.search-bar-container .form-control,
+.search-bar-container .form-select {
+  border: 2px solid #e9ecef;
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-size: 1rem;
+  transition: var(--transition);
+}
+
+.search-bar-container .form-control:focus,
+.search-bar-container .form-select:focus {
+  border-color: var(--primary-color);
+  box-shadow: none;
+}
+
+.search-bar-container .btn-search {
+  background: var(--primary-color);
+  color: var(--white);
+  padding: 12px 24px;
+  font-weight: 600;
+  border-radius: 8px;
+  border: none;
+  transition: var(--transition);
+}
+
+.search-bar-container .btn-search:hover {
+  background: var(--primary-dark);
+  color: var(--white);
+}
+
+/* Filter Sidebar */
+.filter-sidebar {
+  background: var(--white);
+  border-radius: 12px;
+  box-shadow: var(--shadow-md);
+  position: sticky;
+  top: 100px;
+}
+
+.filter-section {
+  border-bottom: 1px solid #e9ecef;
+  padding-bottom: 15px;
+}
+
+.filter-section:last-child {
+  border-bottom: none;
+}
+
+.filter-sidebar .form-select-sm {
+  border: 2px solid #e9ecef;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 0.9rem;
+}
+
+.filter-sidebar .form-select-sm:focus {
+  border-color: var(--primary-color);
+  box-shadow: none;
+}
+
+.amenity-check {
+  margin-bottom: 8px;
+}
+
+.amenity-check .form-check-input:checked {
+  background-color: var(--primary-color);
+  border-color: var(--primary-color);
+}
+
+.verified-switch .form-check-input:checked {
+  background-color: var(--success);
+  border-color: var(--success);
+}
+
+/* Mobile Filter Toggle */
+.filter-toggle-btn {
+  background: var(--white);
+  border: 2px solid var(--primary-color);
+  color: var(--primary-color);
+  padding: 12px 20px;
+  font-weight: 600;
+  border-radius: 8px;
+  transition: var(--transition);
+}
+
+.filter-toggle-btn:hover {
+  background: var(--primary-color);
+  color: var(--white);
+}
+
+/* Hostel Card */
+.hostel-card {
+  border: none;
+  border-radius: 12px;
+  overflow: hidden;
+  transition: var(--transition);
+}
+
+.hostel-card:hover {
+  transform: translateY(-5px);
+  box-shadow: var(--shadow-lg);
+}
+
+.card-image-wrapper {
+  position: relative;
+  overflow: hidden;
+}
+
+.card-image {
+  height: 200px;
+  object-fit: cover;
+  transition: var(--transition);
+}
+
+.hostel-card:hover .card-image {
+  transform: scale(1.05);
+}
+
+.verified-badge {
+  font-size: 0.85rem;
+  padding: 8px 12px;
+  border-radius: 8px;
+}
+
+.price-badge {
+  font-size: 0.9rem;
+  padding: 8px 12px;
+  border-radius: 8px;
+}
+
+.rating-badge {
+  background: rgba(255, 255, 255, 0.9);
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+
+.amenity-badge {
+  font-size: 0.8rem;
+  font-weight: 500;
+  padding: 6px 10px;
+  border-radius: 6px;
+}
+
+.view-details-btn {
+  background: var(--primary-color);
+  border: none;
+  padding: 12px 20px;
+  font-weight: 600;
+  border-radius: 8px;
+  transition: var(--transition);
+}
+
+.view-details-btn:hover {
+  background: var(--primary-dark);
+}
+
+/* Results Count */
+.results-count {
+  font-size: 0.9rem;
+  padding: 8px 16px;
+  border-radius: 8px;
+}
+
+/* Loading State */
+.loading-container {
+  min-height: 400px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.loading-container .spinner {
+  width: 3rem;
+  height: 3rem;
+}
+
+/* Empty State */
+.empty-state-alert {
+  border: none;
+  border-radius: 12px;
+  box-shadow: var(--shadow-md);
+}
+
+/* ==========================================================================
+   HOSTEL DETAILS PAGE STYLES
+   ========================================================================== */
+
+.hostel-details-page {
+  min-height: calc(100vh - 200px);
+  padding-bottom: 80px;
+}
+
+/* Quick Info Items */
+.quick-info-item {
+  transition: var(--transition);
+}
+
+.quick-info-item:hover {
+  background: var(--primary-color) !important;
+  color: var(--white) !important;
+}
+
+.quick-info-item:hover small {
+  color: rgba(255, 255, 255, 0.8) !important;
+}
+
+/* ==========================================================================
+   IMAGE GALLERY STYLES
+   ========================================================================== */
+
+.image-gallery .main-image-container {
+  position: relative;
+  background: #f8f9fa;
+}
+
+.image-gallery .main-image {
+  transition: transform 0.3s ease;
+}
+
+.image-gallery .main-image-container:hover .main-image {
+  transform: scale(1.01);
+}
+
+.image-gallery .thumbnail-wrapper {
+  transition: all 0.2s ease;
+  opacity: 0.7;
+}
+
+.image-gallery .thumbnail-wrapper:hover {
+  opacity: 1;
+}
+
+.image-gallery .thumbnail-wrapper:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--primary-color);
+}
+
+.image-gallery .image-counter {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+/* ==========================================================================
+   AMENITIES LIST STYLES
+   ========================================================================== */
+
+.amenities-list .amenity-item {
+  transition: var(--transition);
+  cursor: default;
+}
+
+.amenities-list .amenity-item:hover {
+  transform: translateX(5px);
+}
+
+.amenities-list .amenity-text {
+  font-weight: 500;
+}
+
+/* Amenity color variants */
+.amenity-water {
+  background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+  color: #1976d2;
+}
+
+.amenity-wifi {
+  background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+  color: #388e3c;
+}
+
+.amenity-security {
+  background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
+  color: #f57c00;
+}
+
+.amenity-electricity {
+  background: linear-gradient(135deg, #fffde7 0%, #fff9c4 100%);
+  color: #fbc02d;
+}
+
+.amenity-laundry {
+  background: linear-gradient(135deg, #e0f7fa 0%, #b2ebf2 100%);
+  color: #0097a7;
+}
+
+.amenity-study {
+  background: linear-gradient(135deg, #f3e5f5 0%, #e1bee7 100%);
+  color: #7b1fa2;
+}
+
+.amenity-gym {
+  background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%);
+  color: #d32f2f;
+}
+
+.amenity-cafeteria {
+  background: linear-gradient(135deg, #efebe9 0%, #d7ccc8 100%);
+  color: #5d4037;
+}
+
+.amenity-garden {
+  background: linear-gradient(135deg, #e8f5e9 0%, #a5d6a7 100%);
+  color: #2e7d32;
+}
+
+.amenity-parking {
+  background: linear-gradient(135deg, #eceff1 0%, #cfd8dc 100%);
+  color: #455a64;
+}
+
+.amenity-default {
+  background: linear-gradient(135deg, #f5f5f5 0%, #eeeeee 100%);
+  color: #616161;
+}
+
+/* ==========================================================================
+   CONTACT PANEL STYLES
+   ========================================================================== */
+
+.contact-panel .landlord-avatar {
+  width: 60px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--light-bg);
+  border-radius: 50%;
+}
+
+.contact-panel .contact-item {
+  transition: var(--transition);
+}
+
+.contact-panel .contact-item:hover {
+  background: var(--light-bg);
+  border-radius: 8px;
+  margin-left: -10px;
+  margin-right: -10px;
+  padding-left: 20px;
+  padding-right: 20px;
+}
+
+.contact-panel .login-notice {
+  border-left: 3px solid var(--info);
+}
+
+/* ==========================================================================
+   TRUST SECTION STYLES
+   ========================================================================== */
+
+.trust-section .verification-badge {
+  transition: var(--transition);
+}
+
+.trust-section .trust-features-card,
+.trust-section .fraud-prevention-card {
+  transition: var(--transition);
+}
+
+.trust-section .trust-features-card:hover,
+.trust-section .fraud-prevention-card:hover {
+  transform: translateY(-2px);
+}
+
+.trust-section .trust-item,
+.trust-section .fraud-item {
+  transition: var(--transition);
+}
+
+.trust-section .trust-item:hover {
+  background: var(--white) !important;
+  box-shadow: var(--shadow-md);
+}
+
+.trust-section .safety-notice {
+  transition: var(--transition);
+}
+
+.trust-section .safety-notice:hover {
+  background: var(--primary-color) !important;
+  color: var(--white) !important;
+}
+
+/* ==========================================================================
+   LOADING & SKELETON STYLES
+   ========================================================================== */
+
+.loading-state {
+  padding: 60px 20px;
+}
+
+.loading-state.full-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Skeleton Animation */
+@keyframes skeleton-loading {
+  0% {
+    background-position: -200px 0;
+  }
+  100% {
+    background-position: calc(200px + 100%) 0;
+  }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200px 100%;
+  animation: skeleton-loading 1.5s ease-in-out infinite;
+  border-radius: 4px;
+}
+
+.skeleton-card {
+  min-height: 300px;
+}
+
+.skeleton-image {
+  width: 100%;
+  height: 300px;
+}
+
+.skeleton-image-main {
+  width: 100%;
+  height: 200px;
+}
+
+.skeleton-title {
+  width: 70%;
+  height: 24px;
+}
+
+.skeleton-text {
+  width: 100%;
+  height: 16px;
+  margin-bottom: 8px;
+}
+
+.skeleton-text.short {
+  width: 60%;
+}
+
+.skeleton-button {
+  width: 120px;
+  height: 40px;
+  border-radius: 8px;
+}
+
+.skeleton-thumbnail {
+  width: 80px;
+  height: 60px;
+}
+
+/* ==========================================================================
+   TABS STYLES
+   ========================================================================== */
+
+.nav-tabs {
+  border-bottom: 2px solid #e9ecef;
+}
+
+.nav-tabs .nav-link {
+  border: none;
+  color: #6c757d;
+  font-weight: 600;
+  padding: 12px 20px;
+  transition: var(--transition);
+}
+
+.nav-tabs .nav-link:hover {
+  border: none;
+  color: var(--primary-color);
+  background: transparent;
+}
+
+.nav-tabs .nav-link.active {
+  border: none;
+  color: var(--primary-color);
+  background: transparent;
+  border-bottom: 3px solid var(--primary-color);
+}
+
+.tab-content {
+  background: transparent;
+}
+
+.tab-content h5 {
+  color: var(--dark);
+}
+
+/* ==========================================================================
+   RULES LIST STYLES
+   ========================================================================== */
+
+.rules-list li {
+  transition: var(--transition);
+}
+
+.rules-list li:hover {
+  transform: translateX(5px);
+}
+
+/* ==========================================================================
+   STICKY SIDEBAR
+   ========================================================================== */
+
+.sticky-sidebar {
+  position: sticky;
+  top: 100px;
+}
+
+/* ==========================================================================
+   LOGIN PAGE STYLES
+   ========================================================================== */
+
+.login-section,
+.register-section {
+  min-height: calc(100vh - 200px);
+  background: var(--light-bg);
+  padding: 60px 0;
+}
+
+.login-card,
+.register-card {
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.login-icon,
+.register-icon {
+  width: 80px;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(26, 95, 122, 0.1);
+  border-radius: 50%;
+  margin: 0 auto;
+}
+
+.login-card .form-control-lg,
+.register-card .form-control-lg {
+  padding: 14px 18px;
+  font-size: 1rem;
+  border-radius: 10px;
+}
+
+.login-card .form-label,
+.register-card .form-label {
+  font-weight: 500;
+  color: var(--gray-700);
+  margin-bottom: 8px;
+}
+
+.login-card .form-check-label,
+.register-card .form-check-label {
+  font-size: 0.9rem;
+  color: var(--gray-600);
+}
+
+/* Divider */
+.divider {
+  display: flex;
+  align-items: center;
+  margin: 20px 0;
+}
+
+.divider .divider-line {
+  flex: 1;
+  height: 1px;
+  background: var(--gray-300);
+}
+
+.divider .divider-text {
+  padding: 0 20px;
+  color: var(--gray-500);
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* Social Login Buttons */
+.social-login .btn,
+.social-register .btn {
+  padding: 12px 20px;
+  border-radius: 10px;
+  font-weight: 500;
+  transition: var(--transition);
+}
+
+.social-login .btn:hover,
+.social-register .btn:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+/* Security Notice */
+.security-notice {
+  padding: 15px;
+  background: rgba(25, 135, 84, 0.1);
+  border-radius: 10px;
+}
+
+/* Toggle Button Group for Role Selection */
+.role-toggle .btn-check:checked + .btn-outline-primary {
+  background: var(--primary-color);
+  border-color: var(--primary-color);
+  color: var(--white);
+}
+
+.role-toggle .btn-outline-primary {
+  border-width: 2px;
+  border-radius: 12px;
+  padding: 15px 20px;
+  transition: var(--transition);
+}
+
+.role-toggle .btn-outline-primary:hover {
+  border-color: var(--primary-color);
+  background: rgba(26, 95, 122, 0.05);
+}
+
+/* Password Strength */
+.password-strength .progress {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--gray-200);
+}
+
+.password-strength .progress-bar {
+  transition: width 0.3s ease;
+}
+
+/* ==========================================================================
+   RESPONSIVE ADJUSTMENTS
+   ========================================================================== */
+
+@media (max-width: 992px) {
+  .page-title {
+    font-size: 2rem;
+  }
+
+  .filter-sidebar {
+    position: static;
+  }
+  
+  .sticky-sidebar {
+    position: static;
+  }
+  
+  .hero-section .hero-title {
+    font-size: 2.2rem;
+  }
+  
+  .section-title {
+    font-size: 1.8rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .page-header-section {
+    padding: 80px 0 30px;
+  }
+
+  .page-title {
+    font-size: 1.75rem;
+  }
+
+  .page-subtitle {
+    font-size: 1rem;
+  }
+
+  .hostels-content-section {
+    padding: 30px 0 60px;
+  }
+
+  .search-bar-container {
+    padding: 15px;
+  }
+
+  .hostel-card {
+    margin-bottom: 20px;
+  }
+  
+  .hostel-details-page {
+    padding-bottom: 40px;
+  }
+  
+  .image-gallery .main-image-container {
+    max-height: 300px;
+  }
+  
+  .quick-info-item {
+    margin-bottom: 8px;
+  }
+  
+  .hero-section {
+    padding: 120px 0 80px;
+  }
+  
+  .hero-section .hero-title {
+    font-size: 1.8rem;
+  }
+  
+  .hero-section .hero-subtitle {
+    font-size: 1rem;
+  }
+  
+  .cta-section {
+    padding: 60px 0;
+  }
+  
+  .cta-section .cta-title {
+    font-size: 1.8rem;
+  }
+  
+  .section-padding {
+    padding: 60px 0;
+  }
+}
+
+@media (max-width: 576px) {
+  .page-title {
+    font-size: 1.5rem;
+  }
+
+  .hostel-card .card-image {
+    height: 180px;
+  }
+
+  .price-badge {
+    font-size: 0.8rem;
+  }
+  
+  .nav-tabs .nav-link {
+    padding: 10px 12px;
+    font-size: 0.9rem;
+  }
+  
+  .contact-panel .landlord-avatar {
+    width: 50px;
+    height: 50px;
+  }
+  
+  .skeleton-image {
+    height: 200px;
+  }
+  
+  .login-card,
+  .register-card {
+    padding: 20px !important;
+  }
+  
+  .hero-section .search-bar {
+    padding: 15px;
+  }
+  
+  .cta-section .btn-light-custom,
+  .cta-section .btn-outline-light-custom {
+    width: 100%;
+    margin-bottom: 10px;
+  }
+}
+
+/* ==========================================================================
+   ACCESSIBILITY IMPROVEMENTS
+   ========================================================================== */
+
+/* Focus styles */
+*:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
+}
+
+/* Skip link (for keyboard navigation) */
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: var(--primary-color);
+  color: var(--white);
+  padding: 8px 16px;
+  z-index: 100;
+  transition: top 0.3s;
+}
+
+.skip-link:focus {
+  top: 0;
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .amenity-item {
+    border: 2px solid currentColor;
+  }
+  
+  .btn {
+    border-width: 2px;
+  }
+}
