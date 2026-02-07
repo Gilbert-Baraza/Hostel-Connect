@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Container, Row, Col, Button, Breadcrumb, Card, Badge, Alert } from 'react-bootstrap';
 import { Link, useLocation } from 'react-router-dom';
 import DashboardSidebar from '../components/DashboardSidebar';
@@ -8,6 +8,7 @@ import RoomManager from '../components/RoomManager';
 import ProfileSection from '../components/ProfileSection';
 import { useAuth } from '../auth/AuthContext';
 import { getHostels, createHostel, updateHostel, deleteHostel } from '../api/hostels';
+import { getRoomsByHostel, createRoom, updateRoom, deleteRoom, toggleRoomAvailability } from '../api/rooms';
 
 /**
  * LandlordDashboard Main Page
@@ -36,6 +37,7 @@ const LandlordDashboard = () => {
   const [hostels, setHostels] = useState([]);
   const [loadingHostels, setLoadingHostels] = useState(true);
   const [hostelError, setHostelError] = useState(null);
+  const roomsLoadedRef = useRef(new Set());
 
   useEffect(() => {
     const fetchHostels = async () => {
@@ -55,12 +57,66 @@ const LandlordDashboard = () => {
     fetchHostels();
   }, []);
 
+  useEffect(() => {
+    if (currentSection !== 'rooms') return;
+    if (!hostels.length) return;
+
+    const hostelsToFetch = hostels.filter((hostel) => {
+      const hostelId = hostel?._id || hostel?.id;
+      return hostelId && !roomsLoadedRef.current.has(hostelId);
+    });
+
+    if (hostelsToFetch.length === 0) return;
+
+    let cancelled = false;
+
+    const fetchRooms = async () => {
+      try {
+        const responses = await Promise.all(
+          hostelsToFetch.map((hostel) => getRoomsByHostel(hostel._id || hostel.id))
+        );
+
+        if (cancelled) return;
+
+        const roomsByHostelId = new Map();
+        responses.forEach((response, index) => {
+          const hostelId = hostelsToFetch[index]?._id || hostelsToFetch[index]?.id;
+          const rooms = response?.data?.rooms || response?.data?.data?.rooms || [];
+          if (hostelId) {
+            roomsByHostelId.set(hostelId, rooms);
+            roomsLoadedRef.current.add(hostelId);
+          }
+        });
+
+        setHostels((prev) => prev.map((hostel) => {
+          const hostelId = hostel?._id || hostel?.id;
+          if (!roomsByHostelId.has(hostelId)) return hostel;
+          return { ...hostel, rooms: roomsByHostelId.get(hostelId) };
+        }));
+      } catch (error) {
+        console.error('Failed to load rooms:', error);
+      }
+    };
+
+    fetchRooms();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentSection, hostels]);
+
   // Calculate statistics
   const stats = useMemo(() => ({
     totalHostels: hostels.length,
     totalRooms: hostels.reduce((acc, h) => acc + (h.rooms?.length || 0), 0),
-    availableRooms: hostels.reduce((acc, h) => acc + (h.rooms?.filter(r => r.status === 'Available').length || 0), 0),
-    occupiedRooms: hostels.reduce((acc, h) => acc + (h.rooms?.filter(r => r.status === 'Occupied').length || 0), 0),
+    availableRooms: hostels.reduce(
+      (acc, h) => acc + (h.rooms?.filter(r => r.isActive !== false && r.isAvailable === true).length || 0),
+      0
+    ),
+    occupiedRooms: hostels.reduce(
+      (acc, h) => acc + (h.rooms?.filter(r => r.isActive !== false && r.isAvailable === false).length || 0),
+      0
+    ),
     pendingVerification: hostels.filter(h => h.verificationStatus === 'pending').length,
     verifiedHostels: hostels.filter(h => h.verificationStatus === 'approved').length
   }), [hostels]);
@@ -106,47 +162,55 @@ const LandlordDashboard = () => {
   };
 
   // Room management handlers
-  const handleAddRoom = (hostelId, room) => {
+  const handleAddRoom = async (hostelId, payload) => {
+    const response = await createRoom(hostelId, payload);
+    const newRoom = response?.data?.room;
+    if (!newRoom) return;
+
     setHostels(prev => prev.map(h => {
-      if (h.id === hostelId) {
-        return { ...h, rooms: [...(h.rooms || []), room] };
+      if ((h._id || h.id) === hostelId) {
+        return { ...h, rooms: [...(h.rooms || []), newRoom] };
       }
       return h;
     }));
   };
 
-  const handleUpdateRoom = (hostelId, updatedRoom) => {
+  const handleUpdateRoom = async (hostelId, roomId, payload) => {
+    const response = await updateRoom(roomId, payload);
+    const updatedRoom = response?.data?.room;
+    if (!updatedRoom) return;
+
     setHostels(prev => prev.map(h => {
-      if (h.id === hostelId) {
+      if ((h._id || h.id) === hostelId) {
         return {
           ...h,
-          rooms: h.rooms.map(r => r.id === updatedRoom.id ? updatedRoom : r)
+          rooms: (h.rooms || []).map(r => (r._id || r.id) === roomId ? updatedRoom : r)
         };
       }
       return h;
     }));
   };
 
-  const handleDeleteRoom = (hostelId, roomId) => {
+  const handleDeleteRoom = async (hostelId, roomId) => {
+    await deleteRoom(roomId);
     setHostels(prev => prev.map(h => {
-      if (h.id === hostelId) {
-        return { ...h, rooms: h.rooms.filter(r => r.id !== roomId) };
+      if ((h._id || h.id) === hostelId) {
+        return { ...h, rooms: (h.rooms || []).filter(r => (r._id || r.id) !== roomId) };
       }
       return h;
     }));
   };
 
-  const handleToggleRoomAvailability = (hostelId, roomId) => {
+  const handleToggleRoomAvailability = async (hostelId, roomId, isAvailable) => {
+    const response = await toggleRoomAvailability(roomId, !isAvailable);
+    const updatedRoom = response?.data?.room;
+    if (!updatedRoom) return;
+
     setHostels(prev => prev.map(h => {
-      if (h.id === hostelId) {
+      if ((h._id || h.id) === hostelId) {
         return {
           ...h,
-          rooms: h.rooms.map(r => {
-            if (r.id === roomId) {
-              return { ...r, status: r.status === 'Available' ? 'Occupied' : 'Available' };
-            }
-            return r;
-          })
+          rooms: (h.rooms || []).map(r => (r._id || r.id) === roomId ? updatedRoom : r)
         };
       }
       return h;
@@ -294,7 +358,7 @@ const LandlordDashboard = () => {
               </Col>
             </Row>
             {hostels.map(hostel => (
-              <div key={hostel.id} className="mb-4">
+              <div key={hostel._id || hostel.id} className="mb-4">
                 <RoomManager
                   hostel={hostel}
                   onAddRoom={handleAddRoom}

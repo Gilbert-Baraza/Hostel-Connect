@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Card, Table, Button, Badge, Form, Modal, Row, Col } from 'react-bootstrap';
+import { Card, Table, Button, Badge, Form, Modal } from 'react-bootstrap';
 
 /**
  * RoomManager Component
@@ -8,18 +8,22 @@ import { Card, Table, Button, Badge, Form, Modal, Row, Col } from 'react-bootstr
 const RoomManager = ({ hostel, onAddRoom, onUpdateRoom, onDeleteRoom, onToggleRoomAvailability }) => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingRoom, setEditingRoom] = useState(null);
+  const [formError, setFormError] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState({
-    type: 'single',
-    price: '',
-    status: 'Available'
+    roomNumber: '',
+    roomType: 'single',
+    capacity: 1,
+    price: ''
   });
 
   const roomTypes = [
     { value: 'single', label: 'Single Room' },
-    { value: 'shared', label: 'Shared Room' },
-    { value: 'bedsit', label: 'Bedsitter' },
-    { value: 'self', label: 'Self-contained' },
-    { value: 'studio', label: 'Studio Apartment' }
+    { value: 'double', label: 'Double Room' },
+    { value: 'triple', label: 'Triple Room' },
+    { value: 'quad', label: 'Quad Room' },
+    { value: 'studio', label: 'Studio Apartment' },
+    { value: 'bedspace', label: 'Bedspace' }
   ];
 
   const handleChange = (e) => {
@@ -27,50 +31,81 @@ const RoomManager = ({ hostel, onAddRoom, onUpdateRoom, onDeleteRoom, onToggleRo
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setFormError(null);
+    setSubmitting(true);
 
-    const roomData = {
-      id: editingRoom?.id || Date.now().toString(),
-      ...formData,
-      price: parseFloat(formData.price) || 0
-    };
-
-    if (editingRoom) {
-      onUpdateRoom(hostel.id, roomData);
-    } else {
-      onAddRoom(hostel.id, roomData);
+    const hostelId = hostel?._id || hostel?.id;
+    if (!hostelId) {
+      setFormError('Missing hostel id.');
+      setSubmitting(false);
+      return;
     }
 
-    handleCloseModal();
+    const payload = {
+      roomNumber: String(formData.roomNumber || '').trim(),
+      roomType: formData.roomType,
+      capacity: Number(formData.capacity),
+      price: {
+        amount: Number(formData.price),
+        period: 'monthly'
+      }
+    };
+
+    try {
+      if (editingRoom) {
+        const roomId = editingRoom?._id || editingRoom?.id;
+        if (!roomId) {
+          setFormError('Missing room id.');
+          return;
+        }
+        await onUpdateRoom(hostelId, roomId, payload);
+      } else {
+        await onAddRoom(hostelId, payload);
+      }
+
+      handleCloseModal();
+    } catch (error) {
+      setFormError(error?.message || 'Failed to save room');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleEdit = (room) => {
     setEditingRoom(room);
     setFormData({
-      type: room.type,
-      price: room.price.toString(),
-      status: room.status
+      roomNumber: room.roomNumber || '',
+      roomType: room.roomType || 'single',
+      capacity: room.capacity || 1,
+      price: room.price?.amount?.toString() || ''
     });
+    setFormError(null);
     setShowAddModal(true);
   };
 
   const handleCloseModal = () => {
     setShowAddModal(false);
     setEditingRoom(null);
-    setFormData({ type: 'single', price: '', status: 'Available' });
+    setFormError(null);
+    setSubmitting(false);
+    setFormData({ roomNumber: '', roomType: 'single', capacity: 1, price: '' });
   };
 
   const getStatusBadge = (status) => {
     const variants = {
       'Available': 'success',
       'Occupied': 'warning',
-      'Maintenance': 'danger'
+      'Inactive': 'secondary'
     };
     return <Badge bg={variants[status] || 'secondary'}>{status}</Badge>;
   };
 
   const rooms = hostel.rooms || [];
+  const hostelLocation = hostel.address?.city
+    ? `${hostel.address.city}${hostel.address?.county ? `, ${hostel.address.county}` : ''}`
+    : hostel.location || 'N/A';
 
   return (
     <>
@@ -81,7 +116,7 @@ const RoomManager = ({ hostel, onAddRoom, onUpdateRoom, onDeleteRoom, onToggleRo
               <i className="bi bi-door-open me-2"></i>
               Rooms - {hostel.name}
             </h5>
-            <small className="text-muted">{hostel.location}</small>
+            <small className="text-muted">{hostelLocation}</small>
           </div>
           <Button variant="primary" onClick={() => setShowAddModal(true)}>
             <i className="bi bi-plus-lg me-2"></i>
@@ -103,27 +138,40 @@ const RoomManager = ({ hostel, onAddRoom, onUpdateRoom, onDeleteRoom, onToggleRo
               <Table hover className="mb-0">
                 <thead className="table-light">
                   <tr>
-                    <th>Room Type</th>
+                    <th>Room</th>
                     <th>Monthly Rent</th>
+                    <th>Capacity</th>
                     <th>Status</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rooms.map((room) => (
-                    <tr key={room.id}>
+                    <tr key={room._id || room.id}>
                       <td>
                         <strong>
-                          {roomTypes.find(t => t.value === room.type)?.label || room.type}
+                          {room.roomNumber || 'Room'}
                         </strong>
+                        <small className="d-block text-muted">
+                          {roomTypes.find(t => t.value === room.roomType)?.label || room.roomType}
+                        </small>
                       </td>
                       <td>
                         <span className="fw-bold text-success">
-                          KES {room.price.toLocaleString()}
+                          KES {(room.price?.amount || 0).toLocaleString()}
                         </span>
                         <small className="d-block text-muted">per month</small>
                       </td>
-                      <td>{getStatusBadge(room.status)}</td>
+                      <td>
+                        <Badge bg="info">{room.capacity || 0} capacity</Badge>
+                      </td>
+                      <td>
+                        {getStatusBadge(
+                          room.isActive === false
+                            ? 'Inactive'
+                            : (room.isAvailable ? 'Available' : 'Occupied')
+                        )}
+                      </td>
                       <td>
                         <div className="d-flex gap-2">
                           <Button 
@@ -136,14 +184,19 @@ const RoomManager = ({ hostel, onAddRoom, onUpdateRoom, onDeleteRoom, onToggleRo
                           <Button 
                             variant="outline-info" 
                             size="sm"
-                            onClick={() => onToggleRoomAvailability(hostel.id, room.id)}
+                            onClick={() => onToggleRoomAvailability(
+                              hostel._id || hostel.id,
+                              room._id || room.id,
+                              room.isAvailable
+                            )}
+                            disabled={room.isActive === false}
                           >
                             <i className="bi bi-power"></i>
                           </Button>
                           <Button 
                             variant="outline-danger" 
                             size="sm"
-                            onClick={() => onDeleteRoom(hostel.id, room.id)}
+                            onClick={() => onDeleteRoom(hostel._id || hostel.id, room._id || room.id)}
                           >
                             <i className="bi bi-trash"></i>
                           </Button>
@@ -166,12 +219,30 @@ const RoomManager = ({ hostel, onAddRoom, onUpdateRoom, onDeleteRoom, onToggleRo
           </Modal.Title>
         </Modal.Header>
         <Modal.Body>
+          {formError && (
+            <div className="alert alert-danger">
+              <i className="bi bi-exclamation-triangle me-2"></i>
+              {formError}
+            </div>
+          )}
           <Form onSubmit={handleSubmit}>
+            <Form.Group className="mb-3" controlId="roomNumber">
+              <Form.Label className="fw-medium">Room Number</Form.Label>
+              <Form.Control
+                type="text"
+                name="roomNumber"
+                value={formData.roomNumber}
+                onChange={handleChange}
+                placeholder="e.g., A-12"
+                required
+              />
+            </Form.Group>
+
             <Form.Group className="mb-3" controlId="roomType">
               <Form.Label className="fw-medium">Room Type</Form.Label>
               <Form.Select
-                name="type"
-                value={formData.type}
+                name="roomType"
+                value={formData.roomType}
                 onChange={handleChange}
               >
                 {roomTypes.map((type) => (
@@ -180,6 +251,19 @@ const RoomManager = ({ hostel, onAddRoom, onUpdateRoom, onDeleteRoom, onToggleRo
                   </option>
                 ))}
               </Form.Select>
+            </Form.Group>
+
+            <Form.Group className="mb-3" controlId="capacity">
+              <Form.Label className="fw-medium">Capacity</Form.Label>
+              <Form.Control
+                type="number"
+                name="capacity"
+                value={formData.capacity}
+                onChange={handleChange}
+                min="1"
+                max="10"
+                required
+              />
             </Form.Group>
 
             <Form.Group className="mb-3" controlId="price">
@@ -195,25 +279,12 @@ const RoomManager = ({ hostel, onAddRoom, onUpdateRoom, onDeleteRoom, onToggleRo
               />
             </Form.Group>
 
-            <Form.Group className="mb-3" controlId="status">
-              <Form.Label className="fw-medium">Status</Form.Label>
-              <Form.Select
-                name="status"
-                value={formData.status}
-                onChange={handleChange}
-              >
-                <option value="Available">Available</option>
-                <option value="Occupied">Occupied</option>
-                <option value="Maintenance">Maintenance</option>
-              </Form.Select>
-            </Form.Group>
-
             <div className="d-flex gap-3">
-              <Button variant="primary" type="submit" className="px-4">
+              <Button variant="primary" type="submit" className="px-4" disabled={submitting}>
                 <i className="bi bi-check-lg me-2"></i>
                 {editingRoom ? 'Update Room' : 'Add Room'}
               </Button>
-              <Button variant="outline-secondary" onClick={handleCloseModal}>
+              <Button variant="outline-secondary" onClick={handleCloseModal} disabled={submitting}>
                 Cancel
               </Button>
             </div>

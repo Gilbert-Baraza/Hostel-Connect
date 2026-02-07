@@ -53,11 +53,17 @@ const createRoom = async (hostelId, data, userId) => {
   
   // Check hostel status
   if (!hostel.isActive) {
-    throw new Error('Cannot add rooms to an inactive hostel');
+    throw new Error('Cannot add rooms to an inactive hostel. Please contact support if you believe this is an error.');
   }
-  
+
   if (hostel.verificationStatus !== 'approved') {
-    throw new Error('Cannot add rooms to an unapproved hostel');
+    if (hostel.verificationStatus === 'pending') {
+      throw new Error('Cannot add rooms to a hostel that is pending approval. Your hostel must be reviewed and approved by an administrator before you can add rooms. Please wait for approval or contact support.');
+    } else if (hostel.verificationStatus === 'rejected') {
+      throw new Error('Cannot add rooms to a rejected hostel. Your hostel application was not approved. Please review the rejection notes and resubmit for approval.');
+    } else {
+      throw new Error('Cannot add rooms to an unapproved hostel');
+    }
   }
   
   // Check for duplicate room number

@@ -49,6 +49,33 @@ exports.createRoom = async (req, res) => {
       });
     }
     
+    // Hostel verification status errors
+    if (error.message.includes('pending approval')) {
+      return res.status(403).json({
+        success: false,
+        message: error.message,
+        code: 'HOSTEL_PENDING_APPROVAL',
+        suggestion: 'Please wait for your hostel to be approved by an administrator before adding rooms.'
+      });
+    }
+    
+    if (error.message.includes('rejected hostel')) {
+      return res.status(403).json({
+        success: false,
+        message: error.message,
+        code: 'HOSTEL_REJECTED',
+        suggestion: 'Please review the rejection notes and resubmit your hostel for approval.'
+      });
+    }
+    
+    if (error.message.includes('inactive hostel')) {
+      return res.status(403).json({
+        success: false,
+        message: error.message,
+        code: 'HOSTEL_INACTIVE'
+      });
+    }
+    
     res.status(500).json({
       success: false,
       message: 'An error occurred while creating the room'

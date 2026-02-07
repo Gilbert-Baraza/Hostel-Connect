@@ -26,7 +26,10 @@ const HostelForm = ({ initialData = {}, onSubmit, onCancel }) => {
     return [];
   }, [initialData.image, initialData.images]);
 
-  const initialFormData = useMemo(() => ({
+  const initialFormData = useMemo(() => {
+    const initialDistance = initialData.distanceFromCampus ?? initialData.distance;
+
+    return ({
     name: initialData.name || '',
     hostelType: initialData.hostelType || '',
     address: {
@@ -34,7 +37,7 @@ const HostelForm = ({ initialData = {}, onSubmit, onCancel }) => {
       city: initialData.address?.city || '',
       county: initialData.address?.county || ''
     },
-    distance: initialData.distanceFromCampus ?? initialData.distance ?? '',
+    distance: initialDistance === undefined || initialDistance === null ? '' : String(initialDistance),
     description: initialData.description || '',
     amenities: normalizeAmenities(initialData.amenities || []),
     images: initialImages,
@@ -47,7 +50,8 @@ const HostelForm = ({ initialData = {}, onSubmit, onCancel }) => {
       minPrice: initialData.pricing?.minPrice ?? '',
       maxPrice: initialData.pricing?.maxPrice ?? ''
     }
-  }), [initialData, initialImages]);
+    });
+  }, [initialData, initialImages]);
 
   const [formData, setFormData] = useState(initialFormData);
 
@@ -208,7 +212,8 @@ const HostelForm = ({ initialData = {}, onSubmit, onCancel }) => {
       newErrors.county = 'County is required';
     }
     
-    if (!formData.distance.trim()) {
+    const distanceValue = String(formData.distance ?? '').trim();
+    if (!distanceValue) {
       newErrors.distance = 'Distance to university is required';
     }
     
@@ -259,6 +264,7 @@ const HostelForm = ({ initialData = {}, onSubmit, onCancel }) => {
     }
 
     // Prepare data for API
+    const distanceValue = String(formData.distance ?? '').trim();
     const latRaw = formData.coordinates.latitude;
     const lngRaw = formData.coordinates.longitude;
     const latValue = Number(latRaw);
@@ -276,7 +282,7 @@ const HostelForm = ({ initialData = {}, onSubmit, onCancel }) => {
         county: formData.address.county.trim(),
         coordinates: hasCoordinates ? { latitude: latValue, longitude: lngValue } : undefined
       },
-      distanceFromCampus: parseFloat(formData.distance) || 0,
+      distanceFromCampus: parseFloat(distanceValue) || 0,
       amenities: formData.amenities.map((name) => ({
         name,
         category: amenityCategoryMap[name] || 'essential'

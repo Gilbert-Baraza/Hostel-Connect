@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Card, Table, Button, Badge, Dropdown, Modal } from 'react-bootstrap';
+import { Card, Table, Button, Badge, Dropdown, Modal, Toast, ToastContainer } from 'react-bootstrap';
 import HostelForm from './HostelForm';
 
 /**
@@ -12,6 +12,11 @@ const LandlordHostelList = ({ hostels, onAddHostel, onEditHostel, onDeleteHostel
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [hostelToDelete, setHostelToDelete] = useState(null);
   const [formError, setFormError] = useState(null);
+  const [toast, setToast] = useState({ show: false, message: '', variant: 'success' });
+
+  const showToast = (message, variant = 'success') => {
+    setToast({ show: true, message, variant });
+  };
 
   const getVerificationBadge = (status) => {
     const variants = {
@@ -49,8 +54,10 @@ const LandlordHostelList = ({ hostels, onAddHostel, onEditHostel, onDeleteHostel
     try {
       if (editingHostel) {
         await onEditHostel(editingHostel, data);
+        showToast('Hostel updated successfully');
       } else {
         await onAddHostel(data);
+        showToast('Hostel added successfully');
       }
       handleCloseModal();
     } catch (error) {
@@ -73,6 +80,20 @@ const LandlordHostelList = ({ hostels, onAddHostel, onEditHostel, onDeleteHostel
 
   return (
     <>
+      <ToastContainer position="bottom-end" className="p-3">
+        <Toast
+          bg={toast.variant}
+          show={toast.show}
+          onClose={() => setToast(prev => ({ ...prev, show: false }))}
+          delay={3000}
+          autohide
+        >
+          <Toast.Body className="text-white">
+            {toast.message}
+          </Toast.Body>
+        </Toast>
+      </ToastContainer>
+
       <Card className="hostel-list-card border-0 shadow-sm">
         <Card.Header className="bg-white d-flex justify-content-between align-items-center">
           <h5 className="mb-0 fw-bold">
