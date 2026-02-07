@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Container, Row, Col, Button, Breadcrumb, Card, Badge, Alert } from 'react-bootstrap';
 import { Link, useLocation } from 'react-router-dom';
 import DashboardSidebar from '../components/DashboardSidebar';
@@ -7,6 +7,7 @@ import LandlordHostelList from '../components/LandlordHostelList';
 import RoomManager from '../components/RoomManager';
 import ProfileSection from '../components/ProfileSection';
 import { useAuth } from '../auth/AuthContext';
+import { getHostels, createHostel, updateHostel, deleteHostel } from '../api/hostels';
 
 /**
  * LandlordDashboard Main Page
@@ -32,47 +33,37 @@ const LandlordDashboard = () => {
 
   const currentSection = getCurrentSection();
 
-  // Dummy data for demonstration
-  const [hostels, setHostels] = useState([
-    {
-      id: '1',
-      name: 'Sunrise Student Hostel',
-      location: 'Near Egerton University',
-      distance: 0.5,
-      verificationStatus: 'approved',
-      availability: 'Available',
-      amenities: ['Water', 'WiFi', 'Security', 'Electricity'],
-      image: null,
-      rooms: [
-        { id: 'r1', type: 'single', price: 3500, status: 'Available' },
-        { id: 'r2', type: 'shared', price: 2500, status: 'Occupied' }
-      ]
-    },
-    {
-      id: '2',
-      name: 'Green Valley Hostel',
-      location: 'Nakuru Road',
-      distance: 1.2,
-      verificationStatus: 'pending',
-      availability: 'Available',
-      amenities: ['Water', 'WiFi', 'Security', 'Laundry'],
-      image: null,
-      rooms: [
-        { id: 'r3', type: 'single', price: 4000, status: 'Available' },
-        { id: 'r4', type: 'bedsit', price: 5000, status: 'Available' }
-      ]
-    }
-  ]);
+  const [hostels, setHostels] = useState([]);
+  const [loadingHostels, setLoadingHostels] = useState(true);
+  const [hostelError, setHostelError] = useState(null);
+
+  useEffect(() => {
+    const fetchHostels = async () => {
+      setLoadingHostels(true);
+      setHostelError(null);
+      try {
+        const response = await getHostels();
+        const results = response?.data?.hostels || [];
+        setHostels(results);
+      } catch (error) {
+        setHostelError(error.message || 'Failed to load hostels');
+      } finally {
+        setLoadingHostels(false);
+      }
+    };
+
+    fetchHostels();
+  }, []);
 
   // Calculate statistics
-  const stats = {
+  const stats = useMemo(() => ({
     totalHostels: hostels.length,
     totalRooms: hostels.reduce((acc, h) => acc + (h.rooms?.length || 0), 0),
     availableRooms: hostels.reduce((acc, h) => acc + (h.rooms?.filter(r => r.status === 'Available').length || 0), 0),
     occupiedRooms: hostels.reduce((acc, h) => acc + (h.rooms?.filter(r => r.status === 'Occupied').length || 0), 0),
     pendingVerification: hostels.filter(h => h.verificationStatus === 'pending').length,
     verifiedHostels: hostels.filter(h => h.verificationStatus === 'approved').length
-  };
+  }), [hostels]);
 
   // Dummy requests data
   const requests = [
@@ -81,28 +72,37 @@ const LandlordDashboard = () => {
   ];
 
   // Hostel management handlers
-  const handleAddHostel = (hostel) => {
-    setHostels(prev => [...prev, hostel]);
+  const handleAddHostel = async (payload) => {
+    const response = await createHostel(payload);
+    const newHostel = response?.data?.hostel;
+    if (newHostel) {
+      setHostels(prev => [newHostel, ...prev]);
+    }
   };
 
-  const handleEditHostel = (updatedHostel) => {
-    setHostels(prev => prev.map(h => h.id === updatedHostel.id ? updatedHostel : h));
+  const handleEditHostel = async (hostel, payload) => {
+    const hostelId = hostel?._id || hostel?.id;
+    if (!hostelId) return;
+    const response = await updateHostel(hostelId, payload);
+    const updated = response?.data?.hostel;
+    if (updated) {
+      setHostels(prev => prev.map(h => (h._id || h.id) === hostelId ? updated : h));
+    }
   };
 
-  const handleDeleteHostel = (hostelId) => {
-    setHostels(prev => prev.filter(h => h.id !== hostelId));
+  const handleDeleteHostel = async (hostelId) => {
+    await deleteHostel(hostelId);
+    setHostels(prev => prev.filter(h => (h._id || h.id) !== hostelId));
   };
 
-  const handleToggleHostelAvailability = (hostelId) => {
-    setHostels(prev => prev.map(h => {
-      if (h.id === hostelId) {
-        return {
-          ...h,
-          availability: h.availability === 'Available' ? 'Full' : 'Available'
-        };
-      }
-      return h;
-    }));
+  const handleToggleHostelStatus = async (hostelId, hostel) => {
+    const current = hostel || hostels.find(h => (h._id || h.id) === hostelId);
+    if (!current) return;
+    const response = await updateHostel(hostelId, { isActive: !current.isActive });
+    const updated = response?.data?.hostel;
+    if (updated) {
+      setHostels(prev => prev.map(h => (h._id || h.id) === hostelId ? updated : h));
+    }
   };
 
   // Room management handlers
@@ -257,13 +257,30 @@ const LandlordDashboard = () => {
                 <p className="text-muted mb-0">Manage your hostels and listings</p>
               </Col>
             </Row>
-            <LandlordHostelList
-              hostels={hostels}
-              onAddHostel={handleAddHostel}
-              onEditHostel={handleEditHostel}
-              onDeleteHostel={handleDeleteHostel}
-              onToggleAvailability={handleToggleHostelAvailability}
-            />
+            {hostelError && (
+              <Alert variant="danger" className="mb-3">
+                <i className="bi bi-exclamation-triangle me-2"></i>
+                {hostelError}
+              </Alert>
+            )}
+            {loadingHostels ? (
+              <Card className="border-0 shadow-sm">
+                <Card.Body className="text-center py-5">
+                  <div className="spinner-border text-primary" role="status">
+                    <span className="visually-hidden">Loading...</span>
+                  </div>
+                  <p className="text-muted mt-3 mb-0">Loading hostels...</p>
+                </Card.Body>
+              </Card>
+            ) : (
+              <LandlordHostelList
+                hostels={hostels}
+                onAddHostel={handleAddHostel}
+                onEditHostel={handleEditHostel}
+                onDeleteHostel={handleDeleteHostel}
+                onToggleStatus={handleToggleHostelStatus}
+              />
+            )}
           </>
         );
 

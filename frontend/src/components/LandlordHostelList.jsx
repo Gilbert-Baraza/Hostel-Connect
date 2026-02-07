@@ -1,16 +1,17 @@
 import React, { useState } from 'react';
-import { Card, Table, Button, Badge, Dropdown, Modal, Row, Col } from 'react-bootstrap';
+import { Card, Table, Button, Badge, Dropdown, Modal } from 'react-bootstrap';
 import HostelForm from './HostelForm';
 
 /**
  * LandlordHostelList Component
  * Displays and manages landlord's hostels
  */
-const LandlordHostelList = ({ hostels, onAddHostel, onEditHostel, onDeleteHostel, onToggleAvailability }) => {
+const LandlordHostelList = ({ hostels, onAddHostel, onEditHostel, onDeleteHostel, onToggleStatus }) => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingHostel, setEditingHostel] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [hostelToDelete, setHostelToDelete] = useState(null);
+  const [formError, setFormError] = useState(null);
 
   const getVerificationBadge = (status) => {
     const variants = {
@@ -21,38 +22,40 @@ const LandlordHostelList = ({ hostels, onAddHostel, onEditHostel, onDeleteHostel
     return <Badge bg={variants[status] || 'secondary'}>{status}</Badge>;
   };
 
-  const getAvailabilityBadge = (status) => {
-    const variants = {
-      'Available': 'success',
-      'Limited': 'warning',
-      'Full': 'danger'
-    };
-    return <Badge bg={variants[status] || 'secondary'}>{status}</Badge>;
+  const getStatusBadge = (hostel) => {
+    if (hostel.verificationStatus === 'pending') {
+      return <Badge bg="warning">Pending Approval</Badge>;
+    }
+    if (hostel.isActive === false) {
+      return <Badge bg="secondary">Inactive</Badge>;
+    }
+    return <Badge bg="success">Active</Badge>;
   };
 
   const handleEdit = (hostel) => {
     setEditingHostel(hostel);
     setShowAddModal(true);
+    setFormError(null);
   };
 
   const handleCloseModal = () => {
     setShowAddModal(false);
     setEditingHostel(null);
+    setFormError(null);
   };
 
-  const handleFormSubmit = (data) => {
-    if (editingHostel) {
-      onEditHostel({ ...editingHostel, ...data });
-    } else {
-      onAddHostel({
-        id: Date.now().toString(),
-        ...data,
-        verificationStatus: 'pending',
-        rooms: [],
-        createdAt: new Date().toISOString()
-      });
+  const handleFormSubmit = async (data) => {
+    setFormError(null);
+    try {
+      if (editingHostel) {
+        await onEditHostel(editingHostel, data);
+      } else {
+        await onAddHostel(data);
+      }
+      handleCloseModal();
+    } catch (error) {
+      setFormError(error.message || 'Failed to save hostel');
     }
-    handleCloseModal();
   };
 
   const handleDeleteClick = (hostel) => {
@@ -62,7 +65,7 @@ const LandlordHostelList = ({ hostels, onAddHostel, onEditHostel, onDeleteHostel
 
   const confirmDelete = () => {
     if (hostelToDelete) {
-      onDeleteHostel(hostelToDelete.id);
+      onDeleteHostel(hostelToDelete._id || hostelToDelete.id);
     }
     setShowDeleteModal(false);
     setHostelToDelete(null);
@@ -76,7 +79,13 @@ const LandlordHostelList = ({ hostels, onAddHostel, onEditHostel, onDeleteHostel
             <i className="bi bi-building me-2"></i>
             My Hostels
           </h5>
-          <Button variant="primary" onClick={() => setShowAddModal(true)}>
+          <Button
+            variant="primary"
+            onClick={() => {
+              setFormError(null);
+              setShowAddModal(true);
+            }}
+          >
             <i className="bi bi-plus-lg me-2"></i>
             Add Hostel
           </Button>
@@ -86,7 +95,13 @@ const LandlordHostelList = ({ hostels, onAddHostel, onEditHostel, onDeleteHostel
             <div className="text-center py-5">
               <i className="bi bi-building fs-1 text-muted"></i>
               <p className="text-muted mt-3 mb-3">No hostels added yet</p>
-              <Button variant="outline-primary" onClick={() => setShowAddModal(true)}>
+              <Button
+                variant="outline-primary"
+                onClick={() => {
+                  setFormError(null);
+                  setShowAddModal(true);
+                }}
+              >
                 <i className="bi bi-plus-lg me-2"></i>
                 Add Your First Hostel
               </Button>
@@ -99,18 +114,18 @@ const LandlordHostelList = ({ hostels, onAddHostel, onEditHostel, onDeleteHostel
                     <th>Hostel Name</th>
                     <th>Location</th>
                     <th>Rooms</th>
-                    <th>Verification</th>
+                    <th>Approval</th>
                     <th>Status</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {hostels.map((hostel) => (
-                    <tr key={hostel.id}>
+                    <tr key={hostel._id || hostel.id}>
                       <td>
                         <div className="d-flex align-items-center">
                           <img
-                            src={hostel.image || 'https://via.placeholder.com/60'}
+                            src={hostel.images?.[0]?.url || hostel.image || 'https://via.placeholder.com/60'}
                             alt={hostel.name}
                             className="rounded me-3"
                             style={{ width: '60px', height: '45px', objectFit: 'cover' }}
@@ -118,17 +133,20 @@ const LandlordHostelList = ({ hostels, onAddHostel, onEditHostel, onDeleteHostel
                           <div>
                             <strong>{hostel.name}</strong>
                             <small className="d-block text-muted">
-                              {hostel.distance}km from campus
+                              {hostel.distanceFromCampus ?? hostel.distance ?? 0}km from campus
                             </small>
                           </div>
                         </div>
                       </td>
-                      <td>{hostel.location}</td>
+                      <td>
+                        {hostel.address?.city || hostel.location || 'N/A'}
+                        {hostel.address?.county ? `, ${hostel.address.county}` : ''}
+                      </td>
                       <td>
                         <Badge bg="info">{hostel.rooms?.length || 0} rooms</Badge>
                       </td>
                       <td>{getVerificationBadge(hostel.verificationStatus)}</td>
-                      <td>{getAvailabilityBadge(hostel.availability || 'Available')}</td>
+                      <td>{getStatusBadge(hostel)}</td>
                       <td>
                         <Dropdown>
                           <Dropdown.Toggle variant="outline-secondary" size="sm">
@@ -138,9 +156,9 @@ const LandlordHostelList = ({ hostels, onAddHostel, onEditHostel, onDeleteHostel
                             <Dropdown.Item onClick={() => handleEdit(hostel)}>
                               <i className="bi bi-pencil me-2"></i>Edit
                             </Dropdown.Item>
-                            <Dropdown.Item onClick={() => onToggleAvailability(hostel.id)}>
+                            <Dropdown.Item onClick={() => onToggleStatus(hostel._id || hostel.id, hostel)}>
                               <i className="bi bi-power me-2"></i>
-                              Toggle Availability
+                              {hostel.isActive ? 'Set Inactive' : 'Set Active'}
                             </Dropdown.Item>
                             <Dropdown.Divider />
                             <Dropdown.Item 
@@ -169,6 +187,12 @@ const LandlordHostelList = ({ hostels, onAddHostel, onEditHostel, onDeleteHostel
           </Modal.Title>
         </Modal.Header>
         <Modal.Body>
+          {formError && (
+            <div className="alert alert-danger">
+              <i className="bi bi-exclamation-triangle me-2"></i>
+              {formError}
+            </div>
+          )}
           <HostelForm
             initialData={editingHostel || {}}
             onSubmit={handleFormSubmit}

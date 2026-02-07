@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Container, Row, Col, Card, Form, Button, Alert, Breadcrumb, ToggleButton, ToggleButtonGroup } from 'react-bootstrap';
 import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../auth/AuthContext';
 
 /**
  * Register Page Component
@@ -11,10 +12,11 @@ import { Link, useNavigate } from 'react-router-dom';
  * - Role selector (Student / Landlord)
  * - Frontend validation
  * - Loading and success UI
- * - Ready for API integration
+ * - Backend API integration
  */
 const Register = () => {
   const navigate = useNavigate();
+  const { register } = useAuth();
   
   // Form state
   const [formData, setFormData] = useState({
@@ -130,7 +132,7 @@ const Register = () => {
   
   /**
    * Handle form submission
-   * Ready for API integration
+   * Calls backend API
    */
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -142,48 +144,25 @@ const Register = () => {
     
     setLoading(true);
     setError(null);
-    
-    // Simulate API call
-    // Replace with actual API call when backend is ready
-    /*
-    try {
-      const response = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          fullName: formData.fullName,
-          email: formData.email,
-          password: formData.password,
-          role: formData.role,
-        }),
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Registration failed');
-      }
-      
-      const data = await response.json();
+
+    const result = await register({
+      name: formData.fullName,
+      email: formData.email,
+      password: formData.password,
+      role: formData.role
+    });
+
+    if (result.success) {
       setSuccess(true);
-      // Redirect to login after success
       setTimeout(() => navigate('/login'), 2000);
-    } catch (err) {
-      setError(err.message || 'Registration failed. Please try again.');
-    } finally {
-      setLoading(false);
+    } else {
+      const errorMessage = result.errors?.length
+        ? result.errors.join('. ')
+        : result.error || 'Registration failed. Please try again.';
+      setError(errorMessage);
     }
-    */
-    
-    // Simulate successful registration after delay
-    setTimeout(() => {
-      console.log('Registration successful with:', formData);
-      setSuccess(true);
-      setLoading(false);
-      // Redirect to login after showing success message
-      setTimeout(() => navigate('/login'), 2000);
-    }, 1500);
+
+    setLoading(false);
   };
   
   return (

@@ -7,6 +7,7 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import LandlordDashboard from './pages/LandlordDashboard';
 import StudentDashboard from './pages/StudentDashboard';
+import AdminDashboard from './pages/AdminDashboard';
 import { AuthProvider, useAuth } from './auth/AuthContext';
 import ProtectedRoute from './auth/ProtectedRoute';
 
@@ -22,8 +23,10 @@ const Navigation = () => {
   const { user, isAuthenticated, logout } = useAuth();
   const location = useLocation();
   
-  // Hide navbar on landlord/student dashboard routes
-  const isDashboardRoute = location.pathname.startsWith('/landlord/') || location.pathname.startsWith('/student/');
+  // Hide navbar on landlord/student/admin dashboard routes
+  const isDashboardRoute = location.pathname.startsWith('/landlord/') || 
+                            location.pathname.startsWith('/student/') || 
+                            location.pathname.startsWith('/admin/');
   if (isDashboardRoute) {
     return null;
   }
@@ -37,6 +40,11 @@ const Navigation = () => {
   // Show landlord/admin links only for authenticated users with appropriate roles
   if (isAuthenticated && (user?.role === 'landlord' || user?.role === 'admin')) {
     navLinks.push({ href: '/landlord/dashboard', label: 'Dashboard' });
+  }
+
+  // Show admin dashboard link for authenticated admins
+  if (isAuthenticated && user?.role === 'admin') {
+    navLinks.push({ href: '/admin/dashboard', label: 'Admin Panel' });
   }
 
   // Show student dashboard link for authenticated students
@@ -785,56 +793,6 @@ const Footer = () => {
 };
 
 // =============================================================================
-// EXAMPLE: Admin Dashboard Component (Protected Route Example)
-// =============================================================================
-const AdminDashboard = () => {
-  const { user } = useAuth();
-  
-  return (
-    <Container className="py-5 mt-5">
-      <h1 className="mb-4">
-        <i className="bi bi-shield-gear me-2"></i>
-        Admin Dashboard
-      </h1>
-      <Row>
-        <Col md={3}>
-          <Card className="text-center mb-3">
-            <Card.Body>
-              <h3>150</h3>
-              <p className="text-muted mb-0">Total Users</p>
-            </Card.Body>
-          </Card>
-        </Col>
-        <Col md={3}>
-          <Card className="text-center mb-3">
-            <Card.Body>
-              <h3>45</h3>
-              <p className="text-muted mb-0">Pending Approvals</p>
-            </Card.Body>
-          </Card>
-        </Col>
-        <Col md={3}>
-          <Card className="text-center mb-3">
-            <Card.Body>
-              <h3>12</h3>
-              <p className="text-muted mb-0">Reports</p>
-            </Card.Body>
-          </Card>
-        </Col>
-        <Col md={3}>
-          <Card className="text-center mb-3">
-            <Card.Body>
-              <h3>89</h3>
-              <p className="text-muted mb-0">Active Listings</p>
-            </Card.Body>
-          </Card>
-        </Col>
-      </Row>
-    </Container>
-  );
-};
-
-// =============================================================================
 // EXAMPLE: Student Profile Component (Protected Route Example)
 // =============================================================================
 const StudentProfile = () => {
@@ -910,25 +868,55 @@ function App() {
             } />
 
             {/* Protected Routes - Landlord Only */}
-            <Route path="/landlord/dashboard" element={
+            <Route path="/landlord/dashboard/*" element={
               <ProtectedRoute allowedRoles={['landlord']}>
                 <LandlordDashboard />
               </ProtectedRoute>
             } />
 
             {/* Protected Routes - Student Only */}
-            <Route path="/student/dashboard" element={
+            <Route path="/student/dashboard/*" element={
               <ProtectedRoute allowedRoles={['student']}>
                 <StudentDashboard />
               </ProtectedRoute>
             } />
 
             {/* Protected Routes - Admin Only */}
-            {/* <Route path="/admin" element={{ */}
-            {/*   <ProtectedRoute allowedRoles={['admin']}>{{ */}
-            {/*     <AdminDashboard /> */}
-            {/*   </ProtectedRoute> */}
-            {/* }} /> */}
+            <Route path="/admin/dashboard" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AdminDashboard />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/landlord-verification" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AdminDashboard />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/hostel-verification" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AdminDashboard />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/listings" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AdminDashboard />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/reports" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AdminDashboard />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/users" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AdminDashboard />
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/profile" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AdminDashboard />
+              </ProtectedRoute>
+            } />
 
             {/* Fallback for unknown routes */}
             <Route path="*" element={<Navigate to="/" replace />} />

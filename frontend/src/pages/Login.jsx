@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Container, Row, Col, Card, Form, Button, Alert, Breadcrumb } from 'react-bootstrap';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../auth/AuthContext';
 
 /**
  * Login Page Component
@@ -11,11 +12,13 @@ import { Link, useNavigate } from 'react-router-dom';
  * - "Remember me" checkbox
  * - "Forgot password?" link
  * - Loading state
- * - Error state placeholder
- * - Ready for API integration
+ * - Error state handling
+ * - Backend API integration
  */
 const Login = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { login } = useAuth();
   
   // Form state
   const [formData, setFormData] = useState({
@@ -55,7 +58,7 @@ const Login = () => {
   
   /**
    * Handle form submission
-   * Ready for API integration
+   * Calls backend API
    */
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -76,50 +79,29 @@ const Login = () => {
     
     setLoading(true);
     setError(null);
-    
-    // Simulate API call
-    // Replace with actual API call when backend is ready
-    /*
-    try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: formData.email,
-          password: formData.password,
-        }),
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Login failed');
-      }
-      
-      const data = await response.json();
-      // Store token and redirect
-      localStorage.setItem('token', data.token);
-      navigate('/dashboard');
-    } catch (err) {
-      setError(err.message || 'Invalid email or password');
-    } finally {
-      setLoading(false);
+
+    const result = await login({
+      email: formData.email,
+      password: formData.password
+    });
+
+    if (result.success) {
+      const role = result.user?.role;
+      const defaultRedirect = role === 'admin'
+        ? '/admin/dashboard'
+        : role === 'landlord'
+          ? '/landlord/dashboard'
+          : '/hostels';
+      const redirectTo = location.state?.from?.pathname || defaultRedirect;
+      navigate(redirectTo, { replace: true });
+    } else {
+      const errorMessage = result.errors?.length
+        ? result.errors.join('. ')
+        : result.error || 'Invalid email or password';
+      setError(errorMessage);
     }
-    */
-    
-    // Simulate successful login after delay
-    setTimeout(() => {
-      // Demo: Accept any credentials for testing
-      if (formData.email && formData.password) {
-        // Simulate success - in real app, this would be after API response
-        console.log('Login successful with:', formData);
-        navigate('/hostels');
-      } else {
-        setError('Please enter both email and password');
-      }
-      setLoading(false);
-    }, 1500);
+
+    setLoading(false);
   };
   
   return (
