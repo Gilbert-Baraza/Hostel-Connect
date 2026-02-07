@@ -1,15 +1,31 @@
-import React, { useState } from 'react';
-import { Navbar, Nav, Container, Button, Form, Row, Col, Card, NavDropdown } from 'react-bootstrap';
+import React, { useState, lazy, Suspense } from 'react';
+import { Navbar, Nav, Container, Button, Form, Row, Col, Card } from 'react-bootstrap';
 import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation } from 'react-router-dom';
-import Hostels from './pages/Hostels';
-import HostelDetails from './pages/HostelDetails';
-import Login from './pages/Login';
-import Register from './pages/Register';
-import LandlordDashboard from './pages/LandlordDashboard';
-import StudentDashboard from './pages/StudentDashboard';
-import AdminDashboard from './pages/AdminDashboard';
 import { AuthProvider, useAuth } from './auth/AuthContext';
 import ProtectedRoute from './auth/ProtectedRoute';
+import SkipLink from './components/SkipLink';
+
+// Lazy load pages for code splitting and better performance
+const Hostels = lazy(() => import('./pages/Hostels'));
+const HostelDetails = lazy(() => import('./pages/HostelDetails'));
+const Login = lazy(() => import('./pages/Login'));
+const Register = lazy(() => import('./pages/Register'));
+const LandlordDashboard = lazy(() => import('./pages/LandlordDashboard'));
+const StudentDashboard = lazy(() => import('./pages/StudentDashboard'));
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
+const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
+
+// Loading fallback component
+const LoadingFallback = () => (
+  <div className="d-flex align-items-center justify-content-center min-vh-100">
+    <div className="text-center">
+      <div className="spinner-border text-primary mb-3" role="status">
+        <span className="visually-hidden">Loading...</span>
+      </div>
+      <p className="text-muted">Loading...</p>
+    </div>
+  </div>
+);
 
 /**
  * Hostel Connect - Landing Page
@@ -830,97 +846,105 @@ function App() {
     <AuthProvider>
       <Router>
         <div className="App">
+          <SkipLink />
           <Navigation />
-          <Routes>
-            {/* Public Routes */}
-            <Route path="/" element={
-              <>
-                <HeroSection />
-                <ProblemSection />
-                <SolutionSection />
-                <HowItWorksSection />
-                <FeaturesSection />
-                <TrustSection />
-                <CTASection />
-                <Footer />
-              </>
-            } />
-            <Route path="/hostels" element={<Hostels />} />
-            <Route path="/hostels/:id" element={<HostelDetails />} />
-            
-            {/* Public Auth Routes - Redirect to home if already authenticated */}
-            <Route path="/login" element={
-              <ProtectedRoute requireAuth={false}>
-                <Login />
-              </ProtectedRoute>
-            } />
-            <Route path="/register" element={
-              <ProtectedRoute requireAuth={false}>
-                <Register />
-              </ProtectedRoute>
-            } />
+          <Suspense fallback={<LoadingFallback />}>
+            <Routes>
+              {/* Public Routes */}
+              <Route path="/" element={
+                <>
+                  <HeroSection />
+                  <ProblemSection />
+                  <SolutionSection />
+                  <HowItWorksSection />
+                  <FeaturesSection />
+                  <TrustSection />
+                  <CTASection />
+                  <Footer />
+                </>
+              } />
+              <Route path="/hostels" element={<Hostels />} />
+              <Route path="/hostels/:id" element={
+                <ProtectedRoute>
+                  <HostelDetails />
+                </ProtectedRoute>
+              } />
+              
+              {/* Public Auth Routes - Redirect to home if already authenticated */}
+              <Route path="/login" element={
+                <ProtectedRoute requireAuth={false}>
+                  <Login />
+                </ProtectedRoute>
+              } />
+              <Route path="/register" element={
+                <ProtectedRoute requireAuth={false}>
+                  <Register />
+                </ProtectedRoute>
+              } />
 
-            {/* Protected Routes - Student */}
-            <Route path="/profile" element={
-              <ProtectedRoute allowedRoles={['student', 'landlord', 'admin']}>
-                <StudentProfile />
-              </ProtectedRoute>
-            } />
+              {/* Protected Routes - Student */}
+              <Route path="/profile" element={
+                <ProtectedRoute allowedRoles={['student', 'landlord', 'admin']}>
+                  <StudentProfile />
+                </ProtectedRoute>
+              } />
 
-            {/* Protected Routes - Landlord Only */}
-            <Route path="/landlord/dashboard/*" element={
-              <ProtectedRoute allowedRoles={['landlord']}>
-                <LandlordDashboard />
-              </ProtectedRoute>
-            } />
+              {/* Protected Routes - Landlord Only */}
+              <Route path="/landlord/dashboard/*" element={
+                <ProtectedRoute allowedRoles={['landlord']}>
+                  <LandlordDashboard />
+                </ProtectedRoute>
+              } />
 
-            {/* Protected Routes - Student Only */}
-            <Route path="/student/dashboard/*" element={
-              <ProtectedRoute allowedRoles={['student']}>
-                <StudentDashboard />
-              </ProtectedRoute>
-            } />
+              {/* Protected Routes - Student Only */}
+              <Route path="/student/dashboard/*" element={
+                <ProtectedRoute allowedRoles={['student']}>
+                  <StudentDashboard />
+                </ProtectedRoute>
+              } />
 
-            {/* Protected Routes - Admin Only */}
-            <Route path="/admin/dashboard" element={
-              <ProtectedRoute allowedRoles={['admin']}>
-                <AdminDashboard />
-              </ProtectedRoute>
-            } />
-            <Route path="/admin/landlord-verification" element={
-              <ProtectedRoute allowedRoles={['admin']}>
-                <AdminDashboard />
-              </ProtectedRoute>
-            } />
-            <Route path="/admin/hostel-verification" element={
-              <ProtectedRoute allowedRoles={['admin']}>
-                <AdminDashboard />
-              </ProtectedRoute>
-            } />
-            <Route path="/admin/listings" element={
-              <ProtectedRoute allowedRoles={['admin']}>
-                <AdminDashboard />
-              </ProtectedRoute>
-            } />
-            <Route path="/admin/reports" element={
-              <ProtectedRoute allowedRoles={['admin']}>
-                <AdminDashboard />
-              </ProtectedRoute>
-            } />
-            <Route path="/admin/users" element={
-              <ProtectedRoute allowedRoles={['admin']}>
-                <AdminDashboard />
-              </ProtectedRoute>
-            } />
-            <Route path="/admin/profile" element={
-              <ProtectedRoute allowedRoles={['admin']}>
-                <AdminDashboard />
-              </ProtectedRoute>
-            } />
+              {/* Protected Routes - Admin Only */}
+              <Route path="/admin/dashboard" element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <AdminDashboard />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/landlord-verification" element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <AdminDashboard />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/hostel-verification" element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <AdminDashboard />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/listings" element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <AdminDashboard />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/reports" element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <AdminDashboard />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/users" element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <AdminDashboard />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/profile" element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <AdminDashboard />
+                </ProtectedRoute>
+              } />
 
-            {/* Fallback for unknown routes */}
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+              {/* 404 Page */}
+              <Route path="/404" element={<NotFoundPage />} />
+              <Route path="*" element={<Navigate to="/404" replace />} />
+            </Routes>
+          </Suspense>
         </div>
       </Router>
     </AuthProvider>

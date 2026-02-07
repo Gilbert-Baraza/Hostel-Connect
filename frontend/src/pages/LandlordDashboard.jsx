@@ -402,15 +402,7 @@ const LandlordDashboard = () => {
         variant="primary" 
         className="mobile-sidebar-toggle d-lg-none position-fixed"
         onClick={() => setSidebarOpen(!sidebarOpen)}
-        style={{ 
-          top: '80px', 
-          left: '10px', 
-          zIndex: 1060,
-          borderRadius: '50%',
-          width: '50px',
-          height: '50px',
-          padding: '0'
-        }}
+        aria-label="Toggle sidebar"
       >
         <i className={`bi ${sidebarOpen ? 'bi-x' : 'bi-list'} fs-4`}></i>
       </Button>
@@ -420,59 +412,11 @@ const LandlordDashboard = () => {
       <main className="dashboard-content">
         <Container fluid className="px-4 py-4">
           {/* Breadcrumb */}
-          <Breadcrumb className="mb-3">
-            <Breadcrumb.Item linkAs={Link} linkProps={{ to: '/' }}>
-              <i className="bi bi-house-fill me-1"></i> Home
-            </Breadcrumb.Item>
-            <Breadcrumb.Item active>
-              <i className="bi bi-person-workspace me-1"></i>
-              Landlord Dashboard
-            </Breadcrumb.Item>
-          </Breadcrumb>
+          
 
           {renderSection()}
         </Container>
       </main>
-
-      <style>{`
-        .landlord-dashboard {
-          min-height: 100vh;
-          background: #f8f9fa;
-        }
-
-        .dashboard-content {
-          margin-left: 0;
-          transition: margin-left 0.3s ease;
-        }
-
-        @media (min-width: 992px) {
-          .dashboard-content {
-            margin-left: 260px;
-          }
-        }
-
-        .activity-icon {
-          width: 40px;
-          height: 40px;
-          border-radius: 10px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-
-        .bg-success-light { background: rgba(25, 135, 84, 0.1); }
-        .bg-info-light { background: rgba(13, 202, 240, 0.1); }
-        .bg-warning-light { background: rgba(255, 193, 7, 0.1); }
-
-        .quick-action-card {
-          transition: transform 0.2s ease, box-shadow 0.2s ease;
-        }
-
-        .quick-action-card:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
-        }
-      `}</style>
     </div>
   );
 };

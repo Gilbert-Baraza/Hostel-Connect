@@ -1,15 +1,25 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Row, Col, Spinner, Alert, Badge } from 'react-bootstrap';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { Row, Col, Spinner, Alert, Badge, Button, Toast, ToastContainer } from 'react-bootstrap';
 import HostelCard from './HostelCard';
 import SearchBar from './SearchBar';
 import FilterSidebar from './FilterSidebar';
-import { hostels } from '../data/hostels';
+import { getHostels, getPublicHostels } from '../api/hostels';
+import { getSavedHostels } from '../api/student';
+import { normalizeHostel } from '../utils/hostelMapper';
+import { useAuth } from '../auth/AuthContext';
 
 /**
  * HostelList Component
  * Manages filtering, searching, and displaying hostel cards
  */
 const HostelList = ({ isMobile }) => {
+  const { isAuthenticated, user } = useAuth();
+  const [hostels, setHostels] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [savedHostelIds, setSavedHostelIds] = useState([]);
+  const [toast, setToast] = useState({ show: false, message: '', variant: 'success' });
+
   // State for search and filters
   const [searchTerm, setSearchTerm] = useState('');
   const [budget, setBudget] = useState('');
@@ -20,17 +30,58 @@ const HostelList = ({ isMobile }) => {
     verifiedOnly: false
   });
   const [showMobileFilters, setShowMobileFilters] = useState(false);
-  
-  // Loading state simulation
-  const [loading, setLoading] = useState(true);
 
-  // Simulate loading
-  useEffect(() => {
-    const timer = setTimeout(() => {
+  const canSeePrivateHostels = isAuthenticated && (user?.role === 'landlord' || user?.role === 'admin');
+  const canSave = isAuthenticated && user?.role === 'student';
+
+  const showToast = (message, variant = 'success') => {
+    setToast({ show: true, message, variant });
+  };
+
+  const fetchHostels = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = canSeePrivateHostels
+        ? await getHostels()
+        : await getPublicHostels();
+      const results = response?.data?.hostels || response?.data || [];
+      setHostels(results.map(normalizeHostel));
+    } catch (err) {
+      setError(err?.message || 'Failed to load hostels');
+    } finally {
       setLoading(false);
-    }, 800);
-    return () => clearTimeout(timer);
-  }, []);
+    }
+  }, [canSeePrivateHostels]);
+
+  useEffect(() => {
+    fetchHostels();
+  }, [fetchHostels]);
+
+  const fetchSavedHostels = useCallback(async () => {
+    if (!canSave) {
+      setSavedHostelIds([]);
+      return;
+    }
+
+    try {
+      const response = await getSavedHostels();
+      const list = response?.data?.savedHostels || response?.data || [];
+      const ids = list
+        .map((entry) => entry?.hostel?._id || entry?.hostel || entry?._id || entry?.id)
+        .filter(Boolean)
+        .map((value) => String(value));
+      setSavedHostelIds(ids);
+    } catch (err) {
+      console.error('Failed to load saved hostels:', err);
+    }
+  }, [canSave]);
+
+  useEffect(() => {
+    fetchSavedHostels();
+  }, [fetchSavedHostels]);
+
+  const savedIdSet = useMemo(() => new Set(savedHostelIds), [savedHostelIds]);
 
   // Filter hostels based on search term and filters
   const filteredHostels = useMemo(() => {
@@ -79,7 +130,7 @@ const HostelList = ({ isMobile }) => {
       return matchesSearch && matchesBudget && matchesPriceRange && 
              matchesDistance && matchesAmenities && matchesVerified;
     });
-  }, [searchTerm, budget, filters]);
+  }, [searchTerm, budget, filters, hostels]);
 
   // Handle search
   const handleSearch = () => {
@@ -108,6 +159,21 @@ const HostelList = ({ isMobile }) => {
         </Spinner>
         <p className="mt-3 text-muted">Loading hostels...</p>
       </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <Alert variant="danger" className="text-center py-4">
+        <div className="mb-3">
+          <i className="bi bi-exclamation-triangle-fill me-2"></i>
+          {error}
+        </div>
+        <Button variant="outline-danger" onClick={fetchHostels}>
+          <i className="bi bi-arrow-clockwise me-2"></i>
+          Try Again
+        </Button>
+      </Alert>
     );
   }
 
@@ -149,6 +215,20 @@ const HostelList = ({ isMobile }) => {
 
   return (
     <div className="hostel-list-container">
+      <ToastContainer position="bottom-end" className="p-3">
+        <Toast
+          bg={toast.variant}
+          show={toast.show}
+          onClose={() => setToast(prev => ({ ...prev, show: false }))}
+          delay={3000}
+          autohide
+        >
+          <Toast.Body className="text-white">
+            {toast.message}
+          </Toast.Body>
+        </Toast>
+      </ToastContainer>
+
       {/* Search Bar */}
       <SearchBar
         searchTerm={searchTerm}
@@ -187,7 +267,17 @@ const HostelList = ({ isMobile }) => {
           <Row className="g-4">
             {filteredHostels.map((hostel) => (
               <Col key={hostel.id} xs={12} sm={6} xl={4}>
-                <HostelCard hostel={hostel} />
+                <HostelCard
+                  hostel={hostel}
+                  isSaved={savedIdSet.has(String(hostel.id))}
+                  onSaved={(id) => {
+                    const normalizedId = String(id);
+                    setSavedHostelIds((prev) =>
+                      prev.includes(normalizedId) ? prev : [...prev, normalizedId]
+                    );
+                  }}
+                  onNotify={showToast}
+                />
               </Col>
             ))}
           </Row>

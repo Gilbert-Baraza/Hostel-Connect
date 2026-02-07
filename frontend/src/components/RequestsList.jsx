@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { Row, Col, Card, Button, Badge, Table, Alert, Accordion } from 'react-bootstrap';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Row, Col, Card, Button, Badge, Table, Alert, Accordion, Spinner } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
+import { getMyBookings, cancelBooking } from '../api/bookings';
 
 /**
  * RequestsList Component
@@ -10,68 +11,69 @@ import { Link } from 'react-router-dom';
  * @param {Function} props.onCancel - Callback to cancel a request
  */
 const RequestsList = ({ onCancel }) => {
-  // Dummy requests data - shaped like real API response
-  const [requests, setRequests] = useState([
-    {
-      id: 'req-001',
-      hostelId: '1',
-      hostelName: 'Sunrise Student Hostel',
-      type: 'viewing',
-      status: 'pending',
-      date: '2024-02-15',
-      notes: 'Would like to view on Saturday morning',
-      landlordContact: null
-    },
-    {
-      id: 'req-002',
-      hostelId: '2',
-      hostelName: 'Green Valley Hostel',
-      type: 'booking',
-      status: 'approved',
-      date: '2024-02-10',
-      notes: 'Interested in single room for semester',
-      landlordContact: {
-        name: 'Mr. John Kamau',
-        phone: '+254 712 345 678',
-        email: 'landlord@greenvalley.com'
-      }
-    },
-    {
-      id: 'req-003',
-      hostelId: '3',
-      hostelName: 'Campus View Lodge',
-      type: 'viewing',
-      status: 'rejected',
-      date: '2024-02-08',
-      notes: 'Available for viewing next week',
-      landlordContact: null,
-      rejectionReason: 'Hostel is currently fully occupied'
-    },
-    {
-      id: 'req-004',
-      hostelId: '4',
-      hostelName: 'Unity Student Living',
-      type: 'viewing',
-      status: 'pending',
-      date: '2024-02-16',
-      notes: 'First-year student looking for accommodation',
-      landlordContact: null
-    },
-    {
-      id: 'req-005',
-      hostelId: '5',
-      hostelName: 'Harmony Hostels',
-      type: 'booking',
-      status: 'pending',
-      date: '2024-02-14',
-      notes: 'Interested in shared room',
-      landlordContact: null
-    }
-  ]);
+  const [requests, setRequests] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const handleCancel = (requestId) => {
-    setRequests(prev => prev.filter(r => r.id !== requestId));
-    if (onCancel) onCancel(requestId);
+  const normalizeStatus = (status) => {
+    if (status === 'approved' || status === 'pending' || status === 'rejected') {
+      return status;
+    }
+    if (status === 'completed') return 'approved';
+    return 'rejected';
+  };
+
+  const fetchRequests = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await getMyBookings({ limit: 500 });
+      const list = response?.data?.bookings || response?.data || [];
+      const normalized = list.map((booking) => {
+        const hostelId = booking.hostelId?._id || booking.hostelId;
+        const hostelName = booking.hostelId?.name || 'Hostel';
+        const status = normalizeStatus(booking.status);
+        const isApproved = status === 'approved';
+        const landlord = booking.hostelId?.landlordId || {};
+        return {
+          id: booking._id || booking.id,
+          hostelId,
+          hostelName,
+          type: 'booking',
+          status,
+          date: booking.createdAt || booking.bookingPeriod?.startDate,
+          notes: booking.roomId?.roomNumber
+            ? `Room ${booking.roomId.roomNumber}`
+            : 'Booking request',
+          landlordContact: isApproved && landlord?.name ? {
+            name: landlord.name,
+            phone: landlord.phone,
+            email: landlord.email
+          } : null,
+          rejectionReason: booking.decision?.reason || booking.cancellation?.reason || null
+        };
+      });
+      setRequests(normalized);
+    } catch (err) {
+      setError(err?.message || 'Failed to load requests');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchRequests();
+  }, [fetchRequests]);
+
+  const handleCancel = async (requestId) => {
+    setError(null);
+    try {
+      await cancelBooking(requestId, { reason: 'Cancelled by student' });
+      setRequests(prev => prev.filter(r => r.id !== requestId));
+      if (onCancel) onCancel(requestId);
+    } catch (err) {
+      setError(err?.message || 'Failed to cancel request');
+    }
   };
 
   const getStatusVariant = (status) => {
@@ -88,7 +90,10 @@ const RequestsList = ({ onCancel }) => {
   };
 
   const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('en-KE', {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    if (Number.isNaN(date.getTime())) return 'N/A';
+    return date.toLocaleDateString('en-KE', {
       year: 'numeric',
       month: 'long',
       day: 'numeric'
@@ -99,6 +104,32 @@ const RequestsList = ({ onCancel }) => {
   const pendingRequests = requests.filter(r => r.status === 'pending');
   const approvedRequests = requests.filter(r => r.status === 'approved');
   const rejectedRequests = requests.filter(r => r.status === 'rejected');
+
+  if (loading) {
+    return (
+      <div className="text-center py-5">
+        <Spinner animation="border" variant="primary" role="status">
+          <span className="visually-hidden">Loading...</span>
+        </Spinner>
+        <p className="mt-3 text-muted">Loading requests...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <Alert variant="danger" className="text-center py-4">
+        <div className="mb-3">
+          <i className="bi bi-exclamation-triangle-fill me-2"></i>
+          {error}
+        </div>
+        <Button variant="outline-danger" onClick={fetchRequests}>
+          <i className="bi bi-arrow-clockwise me-2"></i>
+          Try Again
+        </Button>
+      </Alert>
+    );
+  }
 
   return (
     <>
@@ -208,7 +239,10 @@ const RequestsList = ({ onCancel }) => {
                     pendingRequests.map((req) => (
                       <tr key={req.id}>
                         <td>
-                          <Link to={`/hostels/${req.hostelId}`} className="fw-medium text-decoration-none">
+                          <Link
+                            to={req.hostelId ? `/hostels/${req.hostelId}` : '/hostels'}
+                            className="fw-medium text-decoration-none"
+                          >
                             {req.hostelName}
                           </Link>
                         </td>
@@ -271,7 +305,10 @@ const RequestsList = ({ onCancel }) => {
                     approvedRequests.map((req) => (
                       <tr key={req.id}>
                         <td>
-                          <Link to={`/hostels/${req.hostelId}`} className="fw-medium text-decoration-none">
+                          <Link
+                            to={req.hostelId ? `/hostels/${req.hostelId}` : '/hostels'}
+                            className="fw-medium text-decoration-none"
+                          >
                             {req.hostelName}
                           </Link>
                         </td>
@@ -341,7 +378,10 @@ const RequestsList = ({ onCancel }) => {
                     rejectedRequests.map((req) => (
                       <tr key={req.id}>
                         <td>
-                          <Link to={`/hostels/${req.hostelId}`} className="fw-medium text-decoration-none">
+                          <Link
+                            to={req.hostelId ? `/hostels/${req.hostelId}` : '/hostels'}
+                            className="fw-medium text-decoration-none"
+                          >
                             {req.hostelName}
                           </Link>
                         </td>

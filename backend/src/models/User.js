@@ -33,10 +33,33 @@ const userSchema = new mongoose.Schema({
     default: 'student',
     required: true
   },
+  verificationStatus: {
+    type: String,
+    enum: ['pending', 'approved', 'rejected'],
+    default: 'pending',
+    index: true
+  },
+  verificationNotes: {
+    reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    reviewedAt: Date,
+    rejectionReason: String,
+    adminComments: String
+  },
   isVerified: {
     type: Boolean,
     default: false
   },
+  savedHostels: [{
+    hostel: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Hostel',
+      required: true
+    },
+    savedAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
   status: {
     type: String,
     enum: ['active', 'suspended', 'deactivated'],

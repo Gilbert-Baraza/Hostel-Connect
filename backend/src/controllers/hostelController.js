@@ -105,6 +105,33 @@ exports.getHostels = async (req, res) => {
 };
 
 /**
+ * Get Public Hostels Controller
+ * GET /hostels/public
+ */
+exports.getPublicHostels = async (req, res) => {
+  try {
+    const { page, limit, sort, ...filters } = req.query;
+
+    const result = await hostelService.getHostels(
+      { page, limit, sort, ...filters },
+      'public',
+      null
+    );
+
+    res.json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    console.error('Get public hostels error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'An error occurred while fetching hostels'
+    });
+  }
+};
+
+/**
  * Get Single Hostel Controller
  * GET /hostels/:id
  */
@@ -223,8 +250,9 @@ exports.deleteHostel = async (req, res) => {
 exports.disableHostel = async (req, res) => {
   try {
     const { id } = req.params;
+    const { reason } = req.body || {};
     
-    const hostel = await hostelService.disableHostel(id, req.userId);
+    const hostel = await hostelService.disableHostel(id, req.userId, reason);
 
     res.json({
       success: true,
@@ -255,8 +283,9 @@ exports.disableHostel = async (req, res) => {
 exports.enableHostel = async (req, res) => {
   try {
     const { id } = req.params;
+    const { reason } = req.body || {};
     
-    const hostel = await hostelService.enableHostel(id, req.userId);
+    const hostel = await hostelService.enableHostel(id, req.userId, reason);
 
     res.json({
       success: true,

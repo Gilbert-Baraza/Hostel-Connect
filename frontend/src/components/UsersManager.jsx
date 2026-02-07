@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { Row, Col, Card, Button, Table, Badge, Modal, Form, InputGroup } from 'react-bootstrap';
-import { users } from '../data/adminData';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Row, Col, Card, Button, Table, Badge, Modal, Form, InputGroup, Spinner, Alert } from 'react-bootstrap';
+import { getAdminUsers, updateUserStatus } from '../api/admin';
+import { normalizeAdminUser } from '../utils/adminMappers';
 
 /**
  * UsersManager Component
@@ -12,13 +13,33 @@ import { users } from '../data/adminData';
  * @param {Function} props.onUserUpdate - Callback when user status changes
  */
 const UsersManager = ({ onUserUpdate }) => {
-  const [usersList, setUsersList] = useState(users);
+  const [usersList, setUsersList] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [showSuspendModal, setShowSuspendModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [suspendReason, setSuspendReason] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
+
+  const fetchUsers = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await getAdminUsers({ limit: 500 });
+      const list = response?.data?.users || [];
+      setUsersList(list.map(normalizeAdminUser));
+    } catch (err) {
+      setError(err?.message || 'Failed to load users');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
 
   const getFilteredUsers = () => {
     return usersList.filter(user => {
@@ -45,30 +66,41 @@ const UsersManager = ({ onUserUpdate }) => {
     setShowSuspendModal(true);
   };
 
-  const handleSuspend = () => {
+  const handleSuspend = async () => {
     if (!selectedUser) return;
-    setUsersList(prev => 
-      prev.map(u => 
-        u.id === selectedUser.id 
-          ? { ...u, status: 'suspended' }
-          : u
-      )
-    );
-    onUserUpdate && onUserUpdate(selectedUser.id, 'suspended');
-    setShowSuspendModal(false);
-    setSelectedUser(null);
-    setSuspendReason('');
+
+    try {
+      await updateUserStatus(selectedUser.id, 'suspended');
+      setUsersList(prev => 
+        prev.map(u => 
+          u.id === selectedUser.id 
+            ? { ...u, status: 'suspended' }
+            : u
+        )
+      );
+      onUserUpdate && onUserUpdate(selectedUser.id, 'suspended');
+      setShowSuspendModal(false);
+      setSelectedUser(null);
+      setSuspendReason('');
+    } catch (err) {
+      setError(err?.message || 'Failed to suspend user');
+    }
   };
 
-  const handleReactivate = (userId) => {
-    setUsersList(prev => 
-      prev.map(u => 
-        u.id === userId 
-          ? { ...u, status: 'active' }
-          : u
-      )
-    );
-    onUserUpdate && onUserUpdate(userId, 'active');
+  const handleReactivate = async (userId) => {
+    try {
+      await updateUserStatus(userId, 'active');
+      setUsersList(prev => 
+        prev.map(u => 
+          u.id === userId 
+            ? { ...u, status: 'active' }
+            : u
+        )
+      );
+      onUserUpdate && onUserUpdate(userId, 'active');
+    } catch (err) {
+      setError(err?.message || 'Failed to reactivate user');
+    }
   };
 
   const getStatusBadge = (status) => {
@@ -76,6 +108,7 @@ const UsersManager = ({ onUserUpdate }) => {
       case 'active': return 'success';
       case 'pending': return 'warning';
       case 'suspended': return 'danger';
+      case 'deactivated': return 'secondary';
       default: return 'secondary';
     }
   };
@@ -114,6 +147,32 @@ const UsersManager = ({ onUserUpdate }) => {
     landlords: usersList.filter(u => u.role === 'landlord').length,
     suspended: usersList.filter(u => u.status === 'suspended').length
   };
+
+  if (loading) {
+    return (
+      <div className="text-center py-5">
+        <Spinner animation="border" variant="primary" role="status">
+          <span className="visually-hidden">Loading...</span>
+        </Spinner>
+        <p className="mt-3 text-muted">Loading users...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <Alert variant="danger" className="text-center py-4">
+        <div className="mb-3">
+          <i className="bi bi-exclamation-triangle-fill me-2"></i>
+          {error}
+        </div>
+        <Button variant="outline-danger" onClick={fetchUsers}>
+          <i className="bi bi-arrow-clockwise me-2"></i>
+          Try Again
+        </Button>
+      </Alert>
+    );
+  }
 
   return (
     <div className="users-manager">
@@ -215,6 +274,7 @@ const UsersManager = ({ onUserUpdate }) => {
                 <option value="all">All Roles</option>
                 <option value="student">Students</option>
                 <option value="landlord">Landlords</option>
+                <option value="admin">Admins</option>
               </Form.Select>
             </Col>
             <Col xs={6} md={3}>
@@ -224,8 +284,8 @@ const UsersManager = ({ onUserUpdate }) => {
               >
                 <option value="all">All Status</option>
                 <option value="active">Active</option>
-                <option value="pending">Pending</option>
                 <option value="suspended">Suspended</option>
+                <option value="deactivated">Deactivated</option>
               </Form.Select>
             </Col>
             <Col xs={12} md={2}>
@@ -303,7 +363,7 @@ const UsersManager = ({ onUserUpdate }) => {
                       <td>{formatDate(user.lastLogin)}</td>
                       <td>
                         <div className="d-flex gap-2">
-                          {user.status === 'suspended' ? (
+                          {user.status === 'suspended' || user.status === 'deactivated' ? (
                             <Button
                               variant="outline-success"
                               size="sm"
@@ -312,7 +372,7 @@ const UsersManager = ({ onUserUpdate }) => {
                               <i className="bi bi-person-check me-1"></i>
                               Reactivate
                             </Button>
-                          ) : user.status !== 'pending' && (
+                          ) : (
                             <Button
                               variant="outline-danger"
                               size="sm"

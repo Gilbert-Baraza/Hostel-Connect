@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { Row, Col, Card, Button, Table, Badge, Modal, Form, InputGroup } from 'react-bootstrap';
-import { landlords, getLandlordById } from '../data/adminData';
+import React, { useEffect, useState, useCallback } from 'react';
+import { Row, Col, Card, Button, Table, Badge, Modal, Form, InputGroup, Spinner, Alert } from 'react-bootstrap';
+import { getAdminLandlords, verifyLandlord } from '../api/admin';
+import { normalizeAdminLandlord } from '../utils/adminMappers';
 
 /**
  * LandlordVerification Component
@@ -17,12 +18,32 @@ import { landlords, getLandlordById } from '../data/adminData';
  * @param {Function} props.onVerificationUpdate - Callback when verification status changes
  */
 const LandlordVerification = ({ onVerificationUpdate }) => {
-  const [landlordsList, setLandlordsList] = useState(landlords);
+  const [landlordsList, setLandlordsList] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [selectedLandlord, setSelectedLandlord] = useState(null);
   const [rejectReason, setRejectReason] = useState('');
   const [filter, setFilter] = useState('pending');
   const [searchTerm, setSearchTerm] = useState('');
+
+  const fetchLandlords = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await getAdminLandlords({ limit: 500 });
+      const list = response?.data?.landlords || [];
+      setLandlordsList(list.map(normalizeAdminLandlord));
+    } catch (err) {
+      setError(err?.message || 'Failed to load landlords');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchLandlords();
+  }, [fetchLandlords]);
 
   /**
    * Get filtered and searched landlords
@@ -50,15 +71,20 @@ const LandlordVerification = ({ onVerificationUpdate }) => {
    * Handle landlord approval
    * @param {string} landlordId 
    */
-  const handleApprove = (landlordId) => {
-    setLandlordsList(prev => 
-      prev.map(l => 
-        l.id === landlordId 
-          ? { ...l, status: 'verified', verifiedAt: new Date().toISOString() }
-          : l
-      )
-    );
-    onVerificationUpdate && onVerificationUpdate(landlordId, 'verified');
+  const handleApprove = async (landlordId) => {
+    try {
+      await verifyLandlord(landlordId, { status: 'approved' });
+      setLandlordsList(prev => 
+        prev.map(l => 
+          l.id === landlordId 
+            ? { ...l, status: 'verified', verifiedAt: new Date().toISOString(), rejectionReason: null }
+            : l
+        )
+      );
+      onVerificationUpdate && onVerificationUpdate(landlordId, 'verified');
+    } catch (err) {
+      setError(err?.message || 'Failed to verify landlord');
+    }
   };
 
   /**
@@ -74,20 +100,25 @@ const LandlordVerification = ({ onVerificationUpdate }) => {
   /**
    * Handle rejection with reason
    */
-  const handleReject = () => {
+  const handleReject = async () => {
     if (!selectedLandlord) return;
-    
-    setLandlordsList(prev => 
-      prev.map(l => 
-        l.id === selectedLandlord.id 
-          ? { ...l, status: 'rejected', rejectionReason: rejectReason }
-          : l
-      )
-    );
-    onVerificationUpdate && onVerificationUpdate(selectedLandlord.id, 'rejected');
-    setShowRejectModal(false);
-    setSelectedLandlord(null);
-    setRejectReason('');
+
+    try {
+      await verifyLandlord(selectedLandlord.id, { status: 'rejected', reason: rejectReason });
+      setLandlordsList(prev => 
+        prev.map(l => 
+          l.id === selectedLandlord.id 
+            ? { ...l, status: 'rejected', rejectionReason: rejectReason }
+            : l
+        )
+      );
+      onVerificationUpdate && onVerificationUpdate(selectedLandlord.id, 'rejected');
+      setShowRejectModal(false);
+      setSelectedLandlord(null);
+      setRejectReason('');
+    } catch (err) {
+      setError(err?.message || 'Failed to reject landlord');
+    }
   };
 
   /**
@@ -120,6 +151,32 @@ const LandlordVerification = ({ onVerificationUpdate }) => {
 
   const filteredLandlords = getFilteredLandlords();
   const pendingCount = landlordsList.filter(l => l.status === 'pending').length;
+
+  if (loading) {
+    return (
+      <div className="text-center py-5">
+        <Spinner animation="border" variant="primary" role="status">
+          <span className="visually-hidden">Loading...</span>
+        </Spinner>
+        <p className="mt-3 text-muted">Loading landlords...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <Alert variant="danger" className="text-center py-4">
+        <div className="mb-3">
+          <i className="bi bi-exclamation-triangle-fill me-2"></i>
+          {error}
+        </div>
+        <Button variant="outline-danger" onClick={fetchLandlords}>
+          <i className="bi bi-arrow-clockwise me-2"></i>
+          Try Again
+        </Button>
+      </Alert>
+    );
+  }
 
   return (
     <div className="landlord-verification">

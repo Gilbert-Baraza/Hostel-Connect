@@ -113,6 +113,18 @@ const AdminSidebar = ({ isOpen, setIsOpen }) => {
 
         {/* Navigation Links */}
         <Nav className="sidebar-nav flex-column">
+          {/* Home Link - Visible at top for easy navigation */}
+          <Nav.Link 
+            href="/"
+            className="sidebar-link"
+          >
+            <i className="bi bi-house-fill sidebar-icon"></i>
+            <div className="sidebar-text">
+              <span className="sidebar-label">Home</span>
+              <span className="sidebar-description">Return to homepage</span>
+            </div>
+          </Nav.Link>
+          
           {navItems.map((item) => (
             <Nav.Link
               key={item.path}

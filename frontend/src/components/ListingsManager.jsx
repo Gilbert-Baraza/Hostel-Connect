@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { Row, Col, Card, Button, Table, Badge, Modal, Form, InputGroup } from 'react-bootstrap';
-import { hostels, getLandlordById } from '../data/adminData';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Row, Col, Card, Button, Table, Badge, Modal, Form, InputGroup, Spinner, Alert } from 'react-bootstrap';
+import { getAdminHostels, disableHostel, enableHostel } from '../api/hostels';
+import { normalizeAdminHostel } from '../utils/adminMappers';
 
 /**
  * ListingsManager Component
@@ -17,13 +18,33 @@ import { hostels, getLandlordById } from '../data/adminData';
  * @param {Function} props.onListingUpdate - Callback when listing status changes
  */
 const ListingsManager = ({ onListingUpdate }) => {
-  const [listings, setListings] = useState(hostels);
+  const [listings, setListings] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [showDisableModal, setShowDisableModal] = useState(false);
   const [selectedListing, setSelectedListing] = useState(null);
   const [disableReason, setDisableReason] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
+
+  const fetchListings = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await getAdminHostels({ limit: 500 });
+      const list = response?.data?.hostels || response?.data || [];
+      setListings(list.map(normalizeAdminHostel));
+    } catch (err) {
+      setError(err?.message || 'Failed to load listings');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchListings();
+  }, [fetchListings]);
 
   /**
    * Get filtered and searched listings
@@ -63,35 +84,45 @@ const ListingsManager = ({ onListingUpdate }) => {
   /**
    * Disable listing
    */
-  const handleDisable = () => {
+  const handleDisable = async () => {
     if (!selectedListing) return;
-    
-    setListings(prev => 
-      prev.map(l => 
-        l.id === selectedListing.id 
-          ? { ...l, status: 'disabled', rejectionReason: disableReason }
-          : l
-      )
-    );
-    onListingUpdate && onListingUpdate(selectedListing.id, 'disabled');
-    setShowDisableModal(false);
-    setSelectedListing(null);
-    setDisableReason('');
+
+    try {
+      await disableHostel(selectedListing.id, { reason: disableReason });
+      setListings(prev => 
+        prev.map(l => 
+          l.id === selectedListing.id 
+            ? { ...l, status: 'disabled', rejectionReason: disableReason }
+            : l
+        )
+      );
+      onListingUpdate && onListingUpdate(selectedListing.id, 'disabled');
+      setShowDisableModal(false);
+      setSelectedListing(null);
+      setDisableReason('');
+    } catch (err) {
+      setError(err?.message || 'Failed to disable listing');
+    }
   };
 
   /**
    * Re-enable listing
    * @param {string} listingId 
    */
-  const handleEnable = (listingId) => {
-    setListings(prev => 
-      prev.map(l => 
-        l.id === listingId 
-          ? { ...l, status: 'verified', rejectionReason: null }
-          : l
-      )
-    );
-    onListingUpdate && onListingUpdate(listingId, 'verified');
+  const handleEnable = async (listingId) => {
+    try {
+      await enableHostel(listingId);
+      setListings(prev => 
+        prev.map(l => 
+          l.id === listingId 
+            ? { ...l, status: 'verified', rejectionReason: null }
+            : l
+        )
+      );
+      onListingUpdate && onListingUpdate(listingId, 'verified');
+    } catch (err) {
+      setError(err?.message || 'Failed to enable listing');
+    }
   };
 
   /**
@@ -128,11 +159,6 @@ const ListingsManager = ({ onListingUpdate }) => {
    * @param {string} landlordId 
    * @returns {string}
    */
-  const getLandlordName = (landlordId) => {
-    const landlord = getLandlordById(landlordId);
-    return landlord ? landlord.name : 'Unknown';
-  };
-
   const filteredListings = getFilteredListings();
   const stats = {
     total: listings.length,
@@ -140,6 +166,32 @@ const ListingsManager = ({ onListingUpdate }) => {
     pending: listings.filter(l => l.status === 'pending').length,
     disabled: listings.filter(l => l.status === 'disabled').length
   };
+
+  if (loading) {
+    return (
+      <div className="text-center py-5">
+        <Spinner animation="border" variant="primary" role="status">
+          <span className="visually-hidden">Loading...</span>
+        </Spinner>
+        <p className="mt-3 text-muted">Loading listings...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <Alert variant="danger" className="text-center py-4">
+        <div className="mb-3">
+          <i className="bi bi-exclamation-triangle-fill me-2"></i>
+          {error}
+        </div>
+        <Button variant="outline-danger" onClick={fetchListings}>
+          <i className="bi bi-arrow-clockwise me-2"></i>
+          Try Again
+        </Button>
+      </Alert>
+    );
+  }
 
   return (
     <div className="listings-manager">
@@ -290,7 +342,7 @@ const ListingsManager = ({ onListingUpdate }) => {
                           {listing.type}
                         </Badge>
                       </td>
-                      <td>{getLandlordName(listing.landlordId)}</td>
+                      <td>{listing.landlordName || 'Unknown'}</td>
                       <td>
                         <strong>KSh {listing.price.toLocaleString()}</strong>
                         <small className="text-muted">/mo</small>
@@ -370,7 +422,7 @@ const ListingsManager = ({ onListingUpdate }) => {
                       <strong>Location:</strong> {selectedListing.location}
                     </Col>
                     <Col xs={6}>
-                      <strong>Landlord:</strong> {getLandlordName(selectedListing.landlordId)}
+                      <strong>Landlord:</strong> {selectedListing.landlordName || 'Unknown'}
                     </Col>
                   </Row>
                 </Card.Body>

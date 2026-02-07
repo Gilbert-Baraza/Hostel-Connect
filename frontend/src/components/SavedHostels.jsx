@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
-import { Row, Col, Card, Button, Badge, Table, Alert } from 'react-bootstrap';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Row, Col, Card, Button, Badge, Table, Alert, Spinner } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
+import { getSavedHostels, removeSavedHostel } from '../api/student';
+import { normalizeHostel } from '../utils/hostelMapper';
 
 /**
  * SavedHostels Component
@@ -10,68 +12,51 @@ import { Link } from 'react-router-dom';
  * @param {Function} props.onRemove - Callback when a hostel is removed from saved list
  */
 const SavedHostels = ({ onRemove }) => {
-  // Dummy saved hostels data - shaped like real API response
-  const [savedHostels, setSavedHostels] = useState([
-    {
-      id: '1',
-      name: 'Sunrise Student Hostel',
-      location: 'Near Egerton University, Njoro',
-      priceRange: 'KSh 3,500 - 5,000',
-      distance: '0.5 km',
-      verified: true,
-      availability: 'Available',
-      rating: 4.5,
-      savedDate: '2024-02-01'
-    },
-    {
-      id: '2',
-      name: 'Green Valley Hostel',
-      location: 'Nakuru Road, Nakuru',
-      priceRange: 'KSh 4,000 - 6,000',
-      distance: '1.2 km',
-      verified: true,
-      availability: 'Limited',
-      rating: 4.2,
-      savedDate: '2024-02-05'
-    },
-    {
-      id: '3',
-      name: 'Campus View Lodge',
-      location: 'Kenyatta University Area',
-      priceRange: 'KSh 5,000 - 7,500',
-      distance: '0.8 km',
-      verified: false,
-      availability: 'Available',
-      rating: 3.8,
-      savedDate: '2024-02-10'
-    },
-    {
-      id: '4',
-      name: 'Unity Student Living',
-      location: 'Near Moi University, Eldoret',
-      priceRange: 'KSh 3,000 - 4,500',
-      distance: '0.3 km',
-      verified: true,
-      availability: 'Full',
-      rating: 4.0,
-      savedDate: '2024-02-12'
-    },
-    {
-      id: '5',
-      name: 'Harmony Hostels',
-      location: 'Kakamega Road',
-      priceRange: 'KSh 4,500 - 6,500',
-      distance: '1.5 km',
-      verified: true,
-      availability: 'Available',
-      rating: 4.3,
-      savedDate: '2024-02-14'
-    }
-  ]);
+  const [savedHostels, setSavedHostels] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const handleRemove = (hostelId) => {
-    setSavedHostels(prev => prev.filter(h => h.id !== hostelId));
-    if (onRemove) onRemove(hostelId);
+  const fetchSavedHostels = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await getSavedHostels();
+      const list = response?.data?.savedHostels || response?.data || [];
+      const normalized = list.map((entry) => {
+        const rawHostel = entry.hostel || entry;
+        const base = normalizeHostel(rawHostel);
+        const minPrice = rawHostel?.pricing?.minPrice ?? base.price ?? 0;
+        const maxPrice = rawHostel?.pricing?.maxPrice;
+        const priceRange = maxPrice && maxPrice > 0
+          ? `KSh ${Number(minPrice).toLocaleString()} - ${Number(maxPrice).toLocaleString()}`
+          : `KSh ${Number(minPrice).toLocaleString()}`;
+        return {
+          ...base,
+          priceRange,
+          savedAt: entry.savedAt || entry.createdAt
+        };
+      });
+      setSavedHostels(normalized);
+    } catch (err) {
+      setError(err?.message || 'Failed to load saved hostels');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchSavedHostels();
+  }, [fetchSavedHostels]);
+
+  const handleRemove = async (hostelId) => {
+    setError(null);
+    try {
+      await removeSavedHostel(hostelId);
+      setSavedHostels(prev => prev.filter(h => h.id !== hostelId));
+      if (onRemove) onRemove(hostelId);
+    } catch (err) {
+      setError(err?.message || 'Failed to remove saved hostel');
+    }
   };
 
   const getAvailabilityVariant = (availability) => {
@@ -99,6 +84,43 @@ const SavedHostels = ({ onRemove }) => {
     }
     return stars;
   };
+
+  const formatSavedDate = (value) => {
+    if (!value) return null;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return null;
+    return date.toLocaleDateString('en-KE', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
+  if (loading) {
+    return (
+      <div className="text-center py-5">
+        <Spinner animation="border" variant="primary" role="status">
+          <span className="visually-hidden">Loading...</span>
+        </Spinner>
+        <p className="mt-3 text-muted">Loading saved hostels...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <Alert variant="danger" className="text-center py-4">
+        <div className="mb-3">
+          <i className="bi bi-exclamation-triangle-fill me-2"></i>
+          {error}
+        </div>
+        <Button variant="outline-danger" onClick={fetchSavedHostels}>
+          <i className="bi bi-arrow-clockwise me-2"></i>
+          Try Again
+        </Button>
+      </Alert>
+    );
+  }
 
   return (
     <>
@@ -203,9 +225,11 @@ const SavedHostels = ({ onRemove }) => {
                         <i className="bi bi-heart-fill"></i>
                       </Button>
                     </div>
-                    <small className="text-muted d-block mt-2">
-                      Saved on {hostel.savedDate}
-                    </small>
+                    {formatSavedDate(hostel.savedAt) && (
+                      <small className="text-muted d-block mt-2">
+                        Saved on {formatSavedDate(hostel.savedAt)}
+                      </small>
+                    )}
                   </Col>
                 </Row>
               </Card.Body>

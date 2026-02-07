@@ -1,11 +1,12 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { Form, Button, Row, Col } from 'react-bootstrap';
 
 /**
  * SearchBar Component
  * Allows users to search hostels by location and budget
+ * Memoized for performance optimization
  */
-const SearchBar = ({ searchTerm, setSearchTerm, budget, setBudget, onSearch }) => {
+const SearchBar = memo(({ searchTerm, setSearchTerm, budget, setBudget, onSearch }) => {
   return (
     <div className="search-bar-container mb-4">
       <Form>
@@ -31,10 +32,11 @@ const SearchBar = ({ searchTerm, setSearchTerm, budget, setBudget, onSearch }) =
               aria-label="Select budget range"
             >
               <option value="">All Budgets</option>
-              <option value="0-10000">Under ₦10,000</option>
-              <option value="10000-15000">₦10,000 - ₦15,000</option>
-              <option value="15000-20000">₦15,000 - ₦20,000</option>
-              <option value="20000-999999">Over ₦20,000</option>
+              <option value="0-2000">Under Ksh. 2,000</option>
+              <option value="2000-3000">Ksh. 2,000 - Ksh. 3,000</option>
+              <option value="3000-4000">Ksh. 3,000 - Ksh. 4,000</option>
+              <option value="4000-5000">Ksh. 4,000 - Ksh. 5,000</option>
+              <option value="5000-10000">Over Ksh. 5,000</option>
             </Form.Select>
           </Col>
 
@@ -54,6 +56,6 @@ const SearchBar = ({ searchTerm, setSearchTerm, budget, setBudget, onSearch }) =
       </Form>
     </div>
   );
-};
+});
 
 export default SearchBar;

@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { Row, Col, Card, Button, Table, Badge, Modal, Form, InputGroup, Image } from 'react-bootstrap';
-import { hostels, getLandlordById } from '../data/adminData';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Row, Col, Card, Button, Badge, Modal, Form, InputGroup, Spinner, Alert } from 'react-bootstrap';
+import { getAdminHostels, verifyHostel } from '../api/hostels';
+import { normalizeAdminHostel } from '../utils/adminMappers';
 
 /**
  * HostelVerification Component
@@ -18,13 +19,33 @@ import { hostels, getLandlordById } from '../data/adminData';
  * @param {Function} props.onVerificationUpdate - Callback when verification status changes
  */
 const HostelVerification = ({ onVerificationUpdate }) => {
-  const [hostelsList, setHostelsList] = useState(hostels);
+  const [hostelsList, setHostelsList] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
   const [selectedHostel, setSelectedHostel] = useState(null);
   const [rejectReason, setRejectReason] = useState('');
   const [filter, setFilter] = useState('pending');
   const [searchTerm, setSearchTerm] = useState('');
+
+  const fetchHostels = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await getAdminHostels({ limit: 500 });
+      const list = response?.data?.hostels || response?.data || [];
+      setHostelsList(list.map(normalizeAdminHostel));
+    } catch (err) {
+      setError(err?.message || 'Failed to load hostels');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchHostels();
+  }, [fetchHostels]);
 
   /**
    * Get filtered and searched hostels
@@ -51,15 +72,20 @@ const HostelVerification = ({ onVerificationUpdate }) => {
    * Handle hostel approval
    * @param {string} hostelId 
    */
-  const handleApprove = (hostelId) => {
-    setHostelsList(prev => 
-      prev.map(h => 
-        h.id === hostelId 
-          ? { ...h, status: 'verified' }
-          : h
-      )
-    );
-    onVerificationUpdate && onVerificationUpdate(hostelId, 'verified');
+  const handleApprove = async (hostelId) => {
+    try {
+      await verifyHostel(hostelId, { status: 'approved' });
+      setHostelsList(prev => 
+        prev.map(h => 
+          h.id === hostelId 
+            ? { ...h, status: 'verified', rejectionReason: null }
+            : h
+        )
+      );
+      onVerificationUpdate && onVerificationUpdate(hostelId, 'verified');
+    } catch (err) {
+      setError(err?.message || 'Failed to approve hostel');
+    }
   };
 
   /**
@@ -75,20 +101,25 @@ const HostelVerification = ({ onVerificationUpdate }) => {
   /**
    * Handle rejection with reason
    */
-  const handleReject = () => {
+  const handleReject = async () => {
     if (!selectedHostel) return;
-    
-    setHostelsList(prev => 
-      prev.map(h => 
-        h.id === selectedHostel.id 
-          ? { ...h, status: 'rejected', rejectionReason: rejectReason }
-          : h
-      )
-    );
-    onVerificationUpdate && onVerificationUpdate(selectedHostel.id, 'rejected');
-    setShowRejectModal(false);
-    setSelectedHostel(null);
-    setRejectReason('');
+
+    try {
+      await verifyHostel(selectedHostel.id, { status: 'rejected', reason: rejectReason });
+      setHostelsList(prev => 
+        prev.map(h => 
+          h.id === selectedHostel.id 
+            ? { ...h, status: 'rejected', rejectionReason: rejectReason }
+            : h
+        )
+      );
+      onVerificationUpdate && onVerificationUpdate(selectedHostel.id, 'rejected');
+      setShowRejectModal(false);
+      setSelectedHostel(null);
+      setRejectReason('');
+    } catch (err) {
+      setError(err?.message || 'Failed to reject hostel');
+    }
   };
 
   /**
@@ -134,13 +165,34 @@ const HostelVerification = ({ onVerificationUpdate }) => {
    * @param {string} landlordId 
    * @returns {string}
    */
-  const getLandlordName = (landlordId) => {
-    const landlord = getLandlordById(landlordId);
-    return landlord ? landlord.name : 'Unknown';
-  };
-
   const filteredHostels = getFilteredHostels();
   const pendingCount = hostelsList.filter(h => h.status === 'pending').length;
+
+  if (loading) {
+    return (
+      <div className="text-center py-5">
+        <Spinner animation="border" variant="primary" role="status">
+          <span className="visually-hidden">Loading...</span>
+        </Spinner>
+        <p className="mt-3 text-muted">Loading hostels...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <Alert variant="danger" className="text-center py-4">
+        <div className="mb-3">
+          <i className="bi bi-exclamation-triangle-fill me-2"></i>
+          {error}
+        </div>
+        <Button variant="outline-danger" onClick={fetchHostels}>
+          <i className="bi bi-arrow-clockwise me-2"></i>
+          Try Again
+        </Button>
+      </Alert>
+    );
+  }
 
   return (
     <div className="hostel-verification">
@@ -244,7 +296,7 @@ const HostelVerification = ({ onVerificationUpdate }) => {
                   </p>
                   <p className="card-text small">
                     <i className="bi bi-person me-1"></i>
-                    <strong>Landlord:</strong> {getLandlordName(hostel.landlordId)}
+                    <strong>Landlord:</strong> {hostel.landlordName || 'Unknown'}
                   </p>
 
                   {/* Amenities Preview */}
@@ -269,7 +321,7 @@ const HostelVerification = ({ onVerificationUpdate }) => {
                     </div>
                     <div>
                       <small className="text-muted">
-                        {hostel.availableRooms} / {hostel.capacity} rooms
+                        {hostel.availableRooms ?? 'N/A'} / {hostel.capacity ?? 'N/A'} rooms
                       </small>
                     </div>
                   </div>
@@ -344,7 +396,7 @@ const HostelVerification = ({ onVerificationUpdate }) => {
                     <h6 className="mb-0">Landlord Information</h6>
                   </Card.Header>
                   <Card.Body>
-                    <p className="mb-1"><strong>Name:</strong> {getLandlordName(selectedHostel.landlordId)}</p>
+                    <p className="mb-1"><strong>Name:</strong> {selectedHostel.landlordName || 'Unknown'}</p>
                     <p className="mb-0">
                       <a href="#landlord-profile" className="btn btn-sm btn-outline-primary">
                         View Landlord Profile
@@ -389,10 +441,10 @@ const HostelVerification = ({ onVerificationUpdate }) => {
 
                 <Row>
                   <Col xs={6}>
-                    <p className="mb-1"><strong>Capacity:</strong> {selectedHostel.capacity} beds</p>
+                    <p className="mb-1"><strong>Capacity:</strong> {selectedHostel.capacity ?? 'N/A'} beds</p>
                   </Col>
                   <Col xs={6}>
-                    <p className="mb-1"><strong>Available:</strong> {selectedHostel.availableRooms} rooms</p>
+                    <p className="mb-1"><strong>Available:</strong> {selectedHostel.availableRooms ?? 'N/A'} rooms</p>
                   </Col>
                 </Row>
               </Col>

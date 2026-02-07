@@ -1,6 +1,6 @@
-import React from 'react';
-import { Row, Col, Card, ProgressBar } from 'react-bootstrap';
-import { platformStats } from '../data/adminData';
+import React, { useEffect, useState, useCallback } from 'react';
+import { Row, Col, Card, ProgressBar, Spinner, Alert, Button } from 'react-bootstrap';
+import { getAdminOverview } from '../api/admin';
 
 /**
  * DashboardOverview Component
@@ -12,6 +12,45 @@ import { platformStats } from '../data/adminData';
  * @param {Function} props.onNavigate - Function to navigate to different sections
  */
 const DashboardOverview = ({ onNavigate }) => {
+  const [stats, setStats] = useState({
+    totalStudents: 0,
+    totalLandlords: 0,
+    totalHostels: 0,
+    pendingLandlordVerifications: 0,
+    pendingHostelVerifications: 0,
+    reportedListings: 0,
+    activeListings: 0,
+    suspendedUsers: 0
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const fetchOverview = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await getAdminOverview();
+      const data = response?.data || {};
+      setStats({
+        totalStudents: Number(data.totalStudents) || 0,
+        totalLandlords: Number(data.totalLandlords) || 0,
+        totalHostels: Number(data.totalHostels) || 0,
+        pendingLandlordVerifications: Number(data.pendingLandlordVerifications) || 0,
+        pendingHostelVerifications: Number(data.pendingHostelVerifications) || 0,
+        reportedListings: Number(data.reportedListings) || 0,
+        activeListings: Number(data.activeListings) || 0,
+        suspendedUsers: Number(data.suspendedUsers) || 0
+      });
+    } catch (err) {
+      setError(err?.message || 'Failed to load dashboard stats');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchOverview();
+  }, [fetchOverview]);
   
   /**
    * Stat Card Component
@@ -47,17 +86,39 @@ const DashboardOverview = ({ onNavigate }) => {
   /**
    * Calculate verification rate
    */
-  const verificationRate = Math.round(
-    (platformStats.activeListings / platformStats.totalHostels) * 100
-  );
+  const verificationRate = stats.totalHostels > 0
+    ? Math.round((stats.activeListings / stats.totalHostels) * 100)
+    : 0;
 
   /**
    * Calculate pending percentage
    */
-  const pendingPercentage = Math.round(
-    ((platformStats.pendingLandlordVerifications + platformStats.pendingHostelVerifications) / 
-    (platformStats.totalLandlords + platformStats.totalHostels)) * 100
-  );
+
+  if (loading) {
+    return (
+      <div className="text-center py-5">
+        <Spinner animation="border" variant="primary" role="status">
+          <span className="visually-hidden">Loading...</span>
+        </Spinner>
+        <p className="mt-3 text-muted">Loading dashboard metrics...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <Alert variant="danger" className="text-center py-4">
+        <div className="mb-3">
+          <i className="bi bi-exclamation-triangle-fill me-2"></i>
+          {error}
+        </div>
+        <Button variant="outline-danger" onClick={fetchOverview}>
+          <i className="bi bi-arrow-clockwise me-2"></i>
+          Try Again
+        </Button>
+      </Alert>
+    );
+  }
 
   return (
     <div className="dashboard-overview">
@@ -87,21 +148,21 @@ const DashboardOverview = ({ onNavigate }) => {
                   onClick={() => onNavigate && onNavigate('landlord-verification')}
                 >
                   <i className="bi bi-person-check me-1"></i>
-                  Review Landlords ({platformStats.pendingLandlordVerifications})
+                  Review Landlords ({stats.pendingLandlordVerifications})
                 </button>
                 <button 
                   className="btn btn-sm btn-outline-success"
                   onClick={() => onNavigate && onNavigate('hostel-verification')}
                 >
                   <i className="bi bi-building-check me-1"></i>
-                  Review Hostels ({platformStats.pendingHostelVerifications})
+                  Review Hostels ({stats.pendingHostelVerifications})
                 </button>
                 <button 
                   className="btn btn-sm btn-outline-warning"
                   onClick={() => onNavigate && onNavigate('reports')}
                 >
                   <i className="bi bi-flag me-1"></i>
-                  View Reports ({platformStats.reportedListings})
+                  View Reports ({stats.reportedListings})
                 </button>
               </div>
             </Card.Body>
@@ -114,7 +175,7 @@ const DashboardOverview = ({ onNavigate }) => {
         <Col xs={12} sm={6} lg={3}>
           <StatCard
             title="Total Students"
-            value={platformStats.totalStudents.toLocaleString()}
+            value={stats.totalStudents.toLocaleString()}
             icon="bi-people-fill"
             color="primary"
             subtitle="Registered student accounts"
@@ -123,25 +184,25 @@ const DashboardOverview = ({ onNavigate }) => {
         <Col xs={12} sm={6} lg={3}>
           <StatCard
             title="Total Landlords"
-            value={platformStats.totalLandlords}
+            value={stats.totalLandlords}
             icon="bi-person-vcard-fill"
             color="info"
-            subtitle={`${platformStats.pendingLandlordVerifications} pending verification`}
+            subtitle={`${stats.pendingLandlordVerifications} pending verification`}
           />
         </Col>
         <Col xs={12} sm={6} lg={3}>
           <StatCard
             title="Total Hostels"
-            value={platformStats.totalHostels}
+            value={stats.totalHostels}
             icon="bi-building-fill"
             color="success"
-            subtitle={`${platformStats.pendingHostelVerifications} pending approval`}
+            subtitle={`${stats.pendingHostelVerifications} pending approval`}
           />
         </Col>
         <Col xs={12} sm={6} lg={3}>
           <StatCard
             title="Reported Listings"
-            value={platformStats.reportedListings}
+            value={stats.reportedListings}
             icon="bi-exclamation-triangle-fill"
             color="warning"
             subtitle="Requires attention"
@@ -168,14 +229,14 @@ const DashboardOverview = ({ onNavigate }) => {
                     </div>
                     <p className="mb-0 text-muted">Verification Rate</p>
                     <small className="text-muted">
-                      {platformStats.activeListings} of {platformStats.totalHostels} listings
+                      {stats.activeListings} of {stats.totalHostels} listings
                     </small>
                   </div>
                 </Col>
                 <Col xs={6} md={4} className="mb-3 mb-md-0">
                   <div className="text-center">
                     <div className="stat-circle stat-circle-warning mb-2">
-                      <span className="stat-circle-value">{platformStats.suspendedUsers}</span>
+                      <span className="stat-circle-value">{stats.suspendedUsers}</span>
                     </div>
                     <p className="mb-0 text-muted">Suspended Users</p>
                     <small className="text-muted">
@@ -187,8 +248,8 @@ const DashboardOverview = ({ onNavigate }) => {
                   <div className="text-center">
                     <div className="stat-circle stat-circle-info mb-2">
                       <span className="stat-circle-value">
-                        {platformStats.totalStudents > 0 
-                          ? Math.round(platformStats.totalHostels / platformStats.totalStudents * 100)
+                        {stats.totalStudents > 0 
+                          ? Math.round(stats.totalHostels / stats.totalStudents * 100)
                           : 0}
                       </span>
                     </div>
@@ -209,12 +270,12 @@ const DashboardOverview = ({ onNavigate }) => {
                     <i className="bi bi-check-circle text-success me-1"></i>
                     Active Listings
                   </span>
-                  <span>{platformStats.activeListings}</span>
+                  <span>{stats.activeListings}</span>
                 </div>
                 <ProgressBar 
                   variant="success" 
-                  now={platformStats.activeListings} 
-                  max={platformStats.totalHostels}
+                  now={stats.activeListings} 
+                  max={stats.totalHostels}
                   className="mb-3"
                 />
 
@@ -223,12 +284,12 @@ const DashboardOverview = ({ onNavigate }) => {
                     <i className="bi bi-clock text-warning me-1"></i>
                     Pending Verification
                   </span>
-                  <span>{platformStats.pendingLandlordVerifications + platformStats.pendingHostelVerifications}</span>
+                  <span>{stats.pendingLandlordVerifications + stats.pendingHostelVerifications}</span>
                 </div>
                 <ProgressBar 
                   variant="warning" 
-                  now={platformStats.pendingLandlordVerifications + platformStats.pendingHostelVerifications}
-                  max={platformStats.totalHostels + platformStats.totalLandlords}
+                  now={stats.pendingLandlordVerifications + stats.pendingHostelVerifications}
+                  max={stats.totalHostels + stats.totalLandlords}
                   className="mb-3"
                 />
 
@@ -237,12 +298,12 @@ const DashboardOverview = ({ onNavigate }) => {
                     <i className="bi bi-flag text-danger me-1"></i>
                     Reported Listings
                   </span>
-                  <span>{platformStats.reportedListings}</span>
+                  <span>{stats.reportedListings}</span>
                 </div>
                 <ProgressBar 
                   variant="danger" 
-                  now={platformStats.reportedListings}
-                  max={platformStats.totalHostels}
+                  now={stats.reportedListings}
+                  max={stats.totalHostels}
                 />
               </div>
             </Card.Body>
@@ -272,22 +333,22 @@ const DashboardOverview = ({ onNavigate }) => {
                 <li className="d-flex align-items-center mb-2">
                   <i className="bi bi-check-circle text-success me-2"></i>
                   <span>Verified Landlords</span>
-                  <span className="ms-auto fw-bold">{platformStats.totalLandlords - platformStats.pendingLandlordVerifications}</span>
+                  <span className="ms-auto fw-bold">{stats.totalLandlords - stats.pendingLandlordVerifications}</span>
                 </li>
                 <li className="d-flex align-items-center mb-2">
                   <i className="bi bi-check-circle text-success me-2"></i>
                   <span>Verified Hostels</span>
-                  <span className="ms-auto fw-bold">{platformStats.activeListings}</span>
+                  <span className="ms-auto fw-bold">{stats.activeListings}</span>
                 </li>
                 <li className="d-flex align-items-center mb-2">
                   <i className="bi bi-exclamation-circle text-warning me-2"></i>
                   <span>Pending Reviews</span>
-                  <span className="ms-auto fw-bold">{platformStats.pendingHostelVerifications}</span>
+                  <span className="ms-auto fw-bold">{stats.pendingHostelVerifications}</span>
                 </li>
                 <li className="d-flex align-items-center">
                   <i className="bi bi-flag text-danger me-2"></i>
                   <span>Open Reports</span>
-                  <span className="ms-auto fw-bold">{platformStats.reportedListings}</span>
+                  <span className="ms-auto fw-bold">{stats.reportedListings}</span>
                 </li>
               </ul>
             </Card.Body>
@@ -310,21 +371,21 @@ const DashboardOverview = ({ onNavigate }) => {
                 <Col xs={6} md={3} className="text-center mb-3 mb-md-0">
                   <div className="activity-stat">
                     <i className="bi bi-person-plus text-primary fs-2"></i>
-                    <h4 className="mt-2 mb-0">{Math.round(platformStats.totalStudents / 10)}</h4>
+                    <h4 className="mt-2 mb-0">{Math.round(stats.totalStudents / 10)}</h4>
                     <small className="text-muted">New Students (This Week)</small>
                   </div>
                 </Col>
                 <Col xs={6} md={3} className="text-center mb-3 mb-md-0">
                   <div className="activity-stat">
                     <i className="bi bi-building-add text-success fs-2"></i>
-                    <h4 className="mt-2 mb-0">{Math.round(platformStats.totalHostels / 20)}</h4>
+                    <h4 className="mt-2 mb-0">{Math.round(stats.totalHostels / 20)}</h4>
                     <small className="text-muted">New Listings (This Week)</small>
                   </div>
                 </Col>
                 <Col xs={6} md={3} className="text-center">
                   <div className="activity-stat">
                     <i className="bi bi-check-all text-info fs-2"></i>
-                    <h4 className="mt-2 mb-0">{platformStats.pendingLandlordVerifications + platformStats.pendingHostelVerifications}</h4>
+                    <h4 className="mt-2 mb-0">{stats.pendingLandlordVerifications + stats.pendingHostelVerifications}</h4>
                     <small className="text-muted">Pending Verifications</small>
                   </div>
                 </Col>

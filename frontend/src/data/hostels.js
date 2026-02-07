@@ -14,7 +14,7 @@
 //   name: string,
 //   location: string,
 //   distance: string,        // e.g., "0.5 km from main gate"
-//   price: number,           // Monthly rent in NGN
+//   price: number,           // Monthly rent in KES
 //   availability: string,    // "Available", "Limited", "Full"
 //   verified: boolean,       // Admin verification status
 //   image: string,           // Main image URL (for listings page)
@@ -431,10 +431,11 @@ export const filterHostels = (filters = {}) => {
 
 export const filterOptions = {
   priceRanges: [
-    { label: "Under ₦10,000", min: 0, max: 10000 },
-    { label: "₦10,000 - ₦15,000", min: 10000, max: 15000 },
-    { label: "₦15,000 - ₦20,000", min: 15000, max: 20000 },
-    { label: "Over ₦20,000", min: 20000, max: Infinity }
+    { label: "Under Ksh. 2,000", min: 0, max: 2000 },
+    { label: "Ksh. 2,000 - Ksh. 3,000", min: 2000, max: 3000 },
+    { label: "Ksh. 3,000 - Ksh. 4,000", min: 3000, max: 4000 },
+    { label: "Ksh. 4,000 - Ksh. 5,000", min: 4000, max: 5000 },
+    { label: "Over Ksh. 5,000", min: 50000, max: Infinity }
   ],
   distanceRanges: [
     { label: "Within 1 km", max: 1 },

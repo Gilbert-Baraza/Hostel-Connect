@@ -15,6 +15,7 @@ const StudentSidebar = ({ isOpen, setIsOpen }) => {
   
   const menuItems = [
     { path: '/student/dashboard', icon: 'bi-grid-1x2', label: 'Dashboard Home' },
+    { path: '/hostels', icon: 'bi-house-fill', label: 'Find Hostels' },
     { path: '/student/dashboard/saved', icon: 'bi-heart-fill', label: 'Saved Hostels' },
     { path: '/student/dashboard/requests', icon: 'bi-inbox', label: 'My Requests' },
     { path: '/student/dashboard/safety', icon: 'bi-shield-check', label: 'Safety & Verification' },
@@ -49,6 +50,15 @@ const StudentSidebar = ({ isOpen, setIsOpen }) => {
         </div>
 
         <Nav className="sidebar-nav flex-column">
+          {/* Home Link - Visible at top for easy navigation */}
+          <Nav.Link 
+            href="/"
+            className="sidebar-link"
+          >
+            <i className="bi bi-house-fill me-2"></i>
+            <span>Home</span>
+          </Nav.Link>
+          
           {menuItems.map((item) => (
             <Nav.Link
               key={item.path}
@@ -64,13 +74,6 @@ const StudentSidebar = ({ isOpen, setIsOpen }) => {
         </Nav>
 
         <div className="sidebar-footer">
-          <Nav.Link 
-            href="/"
-            className="sidebar-link text-danger"
-          >
-            <i className="bi bi-box-arrow-left me-2"></i>
-            <span>Back to Site</span>
-          </Nav.Link>
         </div>
       </aside>
 

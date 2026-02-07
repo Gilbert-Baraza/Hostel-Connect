@@ -18,6 +18,7 @@ const RoomManager = ({ hostel, onAddRoom, onUpdateRoom, onDeleteRoom, onToggleRo
     { value: 'single', label: 'Single Room' },
     { value: 'shared', label: 'Shared Room' },
     { value: 'bedsit', label: 'Bedsitter' },
+    { value: 'self', label: 'Self-contained' },
     { value: 'studio', label: 'Studio Apartment' }
   ];
 

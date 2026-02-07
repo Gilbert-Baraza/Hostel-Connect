@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Row, Col, Card, Button, Alert, Badge } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
+import { getSavedHostels } from '../api/student';
+import { getMyBookings } from '../api/bookings';
 
 /**
  * DashboardHome Component
@@ -18,12 +20,64 @@ const DashboardHome = ({ user }) => {
     accountStatus: 'verified' // verified, pending, unverified
   };
 
-  // Quick stats
-  const stats = {
-    savedHostels: 5,
-    pendingRequests: 2,
-    approvedRequests: 1
-  };
+  const [stats, setStats] = useState({
+    savedHostels: 0,
+    pendingRequests: 0,
+    approvedRequests: 0
+  });
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [statsError, setStatsError] = useState(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const normalizeStatus = (status) => {
+      if (status === 'approved' || status === 'pending' || status === 'rejected') {
+        return status;
+      }
+      if (status === 'completed') return 'approved';
+      return 'rejected';
+    };
+
+    const fetchStats = async () => {
+      setStatsLoading(true);
+      setStatsError(null);
+      try {
+        const [savedResponse, bookingsResponse] = await Promise.all([
+          getSavedHostels(),
+          getMyBookings({ limit: 500 })
+        ]);
+
+        const savedList = savedResponse?.data?.savedHostels || savedResponse?.data || [];
+        const bookings = bookingsResponse?.data?.bookings || bookingsResponse?.data || [];
+        const statuses = bookings.map((booking) => normalizeStatus(booking.status));
+
+        const nextStats = {
+          savedHostels: savedList.length,
+          pendingRequests: statuses.filter((status) => status === 'pending').length,
+          approvedRequests: statuses.filter((status) => status === 'approved').length
+        };
+
+        if (isMounted) {
+          setStats(nextStats);
+        }
+      } catch (error) {
+        if (isMounted) {
+          setStatsError(error?.message || 'Failed to load dashboard stats');
+        }
+      } finally {
+        if (isMounted) {
+          setStatsLoading(false);
+        }
+      }
+    };
+
+    fetchStats();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -110,6 +164,22 @@ const DashboardHome = ({ user }) => {
         </Col>
       </Row>
 
+      {statsError && (
+        <Row className="mb-4">
+          <Col>
+            <Alert variant="warning" className="border-0 shadow-sm">
+              <div className="d-flex align-items-start">
+                <i className="bi bi-exclamation-triangle-fill fs-5 me-3 mt-1"></i>
+                <div>
+                  <h6 className="fw-bold mb-1">Dashboard data unavailable</h6>
+                  <p className="mb-0 small">{statsError}</p>
+                </div>
+              </div>
+            </Alert>
+          </Col>
+        </Row>
+      )}
+
       {/* Quick Stats */}
       <Row className="mb-4 g-3">
         <Col xs={12} sm={4}>
@@ -118,7 +188,7 @@ const DashboardHome = ({ user }) => {
               <div className="icon-box icon-box-primary mx-auto mb-3">
                 <i className="bi bi-heart-fill"></i>
               </div>
-              <h3 className="fw-bold mb-1">{stats.savedHostels}</h3>
+              <h3 className="fw-bold mb-1">{statsLoading ? '...' : stats.savedHostels}</h3>
               <p className="text-muted mb-0">Saved Hostels</p>
             </Card.Body>
           </Card>
@@ -129,7 +199,7 @@ const DashboardHome = ({ user }) => {
               <div className="icon-box icon-box-warning mx-auto mb-3">
                 <i className="bi bi-clock-history"></i>
               </div>
-              <h3 className="fw-bold mb-1">{stats.pendingRequests}</h3>
+              <h3 className="fw-bold mb-1">{statsLoading ? '...' : stats.pendingRequests}</h3>
               <p className="text-muted mb-0">Pending Requests</p>
             </Card.Body>
           </Card>
@@ -140,7 +210,7 @@ const DashboardHome = ({ user }) => {
               <div className="icon-box icon-box-success mx-auto mb-3">
                 <i className="bi bi-check-circle"></i>
               </div>
-              <h3 className="fw-bold mb-1">{stats.approvedRequests}</h3>
+              <h3 className="fw-bold mb-1">{statsLoading ? '...' : stats.approvedRequests}</h3>
               <p className="text-muted mb-0">Approved Requests</p>
             </Card.Body>
           </Card>

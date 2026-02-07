@@ -139,7 +139,11 @@ const getStudentBookings = async (studentId, options = {}) => {
   
   const [bookings, total] = await Promise.all([
     Booking.find(query)
-      .populate('hostelId', 'name address images')
+      .populate({
+        path: 'hostelId',
+        select: 'name address images landlordId',
+        populate: { path: 'landlordId', select: 'name email phone' }
+      })
       .populate('roomId', 'roomNumber capacity price amenities')
       .sort({ createdAt: -1 })
       .skip(skip)
@@ -147,9 +151,19 @@ const getStudentBookings = async (studentId, options = {}) => {
       .lean(),
     Booking.countDocuments(query)
   ]);
+
+  const sanitizedBookings = bookings.map((booking) => {
+    if (booking.status !== 'approved' && booking.hostelId?.landlordId) {
+      booking.hostelId = {
+        ...booking.hostelId,
+        landlordId: { name: booking.hostelId.landlordId.name }
+      };
+    }
+    return booking;
+  });
   
   return {
-    bookings,
+    bookings: sanitizedBookings,
     pagination: {
       page,
       limit,

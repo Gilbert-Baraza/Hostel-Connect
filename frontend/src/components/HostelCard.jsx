@@ -1,19 +1,65 @@
-import React from 'react';
+import React, { memo, useState } from 'react';
 import { Card, Button, Badge, Row, Col } from 'react-bootstrap';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../auth/AuthContext';
+import { saveHostel } from '../api/student';
 
 /**
  * HostelCard Component
  * Displays individual hostel information in a card format
+ * Memoized for performance optimization
  */
-const HostelCard = ({ hostel }) => {
-  // Format price with Nigerian Naira
+const HostelCard = memo(({ hostel, isSaved = false, onSaved, onNotify }) => {
+  const navigate = useNavigate();
+  const { isAuthenticated, user } = useAuth();
+  const canSave = isAuthenticated && user?.role === 'student';
+  const showSave = !isAuthenticated || user?.role === 'student';
+  const [saving, setSaving] = useState(false);
+
+  // Format price with Kenya Shilling
   const formatPrice = (price) => {
-    return new Intl.NumberFormat('en-NG', {
+    return new Intl.NumberFormat('en-KE', {
       style: 'currency',
-      currency: 'NGN',
+      currency: 'KES',
       maximumFractionDigits: 0
     }).format(price);
+  };
+
+  const amenities = Array.isArray(hostel.amenities) ? hostel.amenities : [];
+  const displayedAmenities = amenities.slice(0, 4);
+  const remainingAmenities = Math.max(amenities.length - 4, 0);
+
+  const roomsAvailableLabel =
+    typeof hostel.roomsAvailable === 'number'
+      ? `${hostel.roomsAvailable} rooms left`
+      : 'Availability N/A';
+
+  const handleSave = async () => {
+    if (!isAuthenticated) {
+      navigate('/login');
+      return;
+    }
+
+    if (!canSave || saving || isSaved) return;
+
+    try {
+      setSaving(true);
+      const response = await saveHostel(hostel.id);
+      const message = response?.message || 'Hostel saved';
+      if (onSaved) {
+        onSaved(hostel.id);
+      }
+      if (onNotify) {
+        onNotify(message, 'success');
+      }
+    } catch (error) {
+      console.error('Save hostel error:', error);
+      if (onNotify) {
+        onNotify(error?.message || 'Failed to save hostel', 'danger');
+      }
+    } finally {
+      setSaving(false);
+    }
   };
 
   // Get amenity icon
@@ -31,10 +77,6 @@ const HostelCard = ({ hostel }) => {
     };
     return icons[amenity] || 'bi-check-circle-fill text-muted';
   };
-
-  // Display amenities (max 4)
-  const displayedAmenities = hostel.amenities.slice(0, 4);
-  const remainingAmenities = hostel.amenities.length - 4;
 
   return (
     <Card className="hostel-card h-100 shadow-sm">
@@ -97,7 +139,7 @@ const HostelCard = ({ hostel }) => {
           </span>
           <span className="text-muted small">
             <i className="bi bi-door-open-fill me-1"></i>
-            {hostel.roomsAvailable} rooms left
+            {roomsAvailableLabel}
           </span>
         </div>
 
@@ -130,19 +172,32 @@ const HostelCard = ({ hostel }) => {
           </Row>
         </div>
 
-        {/* View Details Button */}
-        <Link to={`/hostels/${hostel.id}`} className="text-decoration-none">
-          <Button
-            variant="primary"
-            className="w-100 view-details-btn"
-          >
-            <i className="bi bi-eye-fill me-2"></i>
-            View Details
-          </Button>
-        </Link>
+        {/* Action Buttons */}
+        <div className="d-grid gap-2">
+          <Link to={`/hostels/${hostel.id}`} className="text-decoration-none">
+            <Button
+              variant="primary"
+              className="w-100 view-details-btn"
+            >
+              <i className="bi bi-eye-fill me-2"></i>
+              View Details
+            </Button>
+          </Link>
+          {showSave && (
+            <Button
+              variant={isSaved ? 'success' : 'outline-danger'}
+              className="w-100"
+              onClick={handleSave}
+              disabled={saving || isSaved}
+            >
+              <i className={`bi ${isSaved ? 'bi-check-circle-fill' : 'bi-heart-fill'} me-2`}></i>
+              {isSaved ? 'Saved' : saving ? 'Saving...' : 'Save'}
+            </Button>
+          )}
+        </div>
       </Card.Body>
     </Card>
   );
-};
+});
 
 export default HostelCard;

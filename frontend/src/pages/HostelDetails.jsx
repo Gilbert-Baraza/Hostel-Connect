@@ -8,7 +8,9 @@ import {
   Card, 
   Breadcrumb,
   Tab,
-  Tabs
+  Tabs,
+  Toast,
+  ToastContainer
 } from 'react-bootstrap';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 
@@ -19,8 +21,10 @@ import ContactPanel from '../components/ContactPanel';
 import TrustSection from '../components/TrustSection';
 import { LoadingState, SkeletonLoader } from '../components/LoadingState';
 
-// Data (simulates backend API)
-import { getHostelById } from '../data/hostels';
+import { getHostelById } from '../api/hostels';
+import { normalizeHostel } from '../utils/hostelMapper';
+import { getSavedHostels, saveHostel } from '../api/student';
+import { useAuth } from '../auth/AuthContext';
 
 /**
  * HostelDetails Page Component
@@ -34,63 +38,109 @@ import { getHostelById } from '../data/hostels';
 const HostelDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { isAuthenticated, user } = useAuth();
   
   // State management for API-ready data fetching
   const [hostel, setHostel] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState(null);
+  const [toast, setToast] = useState({ show: false, message: '', variant: 'success' });
   
-  /**
-   * Simulated API fetch function
-   * Replace with actual API call when backend is ready
-   * 
-   * Example API call:
-   * const fetchHostel = async () => {
-   *   try {
-   *     setLoading(true);
-   *     const response = await fetch(`/api/hostels/${id}`);
-   *     if (!response.ok) throw new Error('Hostel not found');
-   *     const data = await response.json();
-   *     setHostel(data);
-   *   } catch (err) {
-   *     setError(err.message);
-   *   } finally {
-   *     setLoading(false);
-   *   }
-   * };
-   */
   useEffect(() => {
-    const fetchHostelData = () => {
+    const fetchHostelData = async () => {
       setLoading(true);
       setError(null);
-      
-      // Simulate API delay
-      const timer = setTimeout(() => {
-        const data = getHostelById(id);
-        
-        if (data) {
-          setHostel(data);
-          setError(null);
-        } else {
-          setError('Hostel not found');
+
+      try {
+        const response = await getHostelById(id);
+        const data = response?.data?.hostel || response?.data;
+
+        if (!data) {
+          throw new Error('Hostel not found');
         }
-        
+
+        setHostel(normalizeHostel(data));
+      } catch (err) {
+        setError(err?.message || 'Hostel not found');
+      } finally {
         setLoading(false);
-      }, 500);
-      
-      return () => clearTimeout(timer);
+      }
     };
-    
+
     fetchHostelData();
   }, [id]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchSavedState = async () => {
+      if (!(isAuthenticated && user?.role === 'student')) {
+        if (isMounted) setSaved(false);
+        return;
+      }
+      try {
+        const response = await getSavedHostels();
+        const list = response?.data?.savedHostels || response?.data || [];
+        const ids = list
+          .map((entry) => entry?.hostel?._id || entry?.hostel || entry?._id || entry?.id)
+          .filter(Boolean)
+          .map((value) => String(value));
+        if (isMounted) {
+          setSaved(ids.includes(String(id)));
+        }
+      } catch (error) {
+        console.error('Failed to load saved hostels:', error);
+      }
+    };
+
+    fetchSavedState();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [id, isAuthenticated, user?.role]);
+
+  const canSave = isAuthenticated && user?.role === 'student';
+  const showSave = !isAuthenticated || user?.role === 'student';
+
+  const handleSave = async () => {
+    if (!isAuthenticated) {
+      navigate('/login');
+      return;
+    }
+    if (!canSave || saving || saved) return;
+    setSaveError(null);
+    try {
+      setSaving(true);
+      const response = await saveHostel(id);
+      setSaved(true);
+      setToast({
+        show: true,
+        message: response?.message || 'Hostel saved',
+        variant: 'success'
+      });
+    } catch (err) {
+      setSaveError(err?.message || 'Failed to save hostel');
+      setToast({
+        show: true,
+        message: err?.message || 'Failed to save hostel',
+        variant: 'danger'
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
   
   /**
-   * Format price to Nigerian Naira
+   * Format price to Kenya Shilling
    */
   const formatPrice = (price) => {
-    return new Intl.NumberFormat('en-NG', {
+    return new Intl.NumberFormat('en-KE', {
       style: 'currency',
-      currency: 'NGN',
+      currency: 'KES',
       maximumFractionDigits: 0
     }).format(price);
   };
@@ -175,8 +225,32 @@ const HostelDetails = () => {
   // =========================================================================
   // SUCCESS STATE - RENDER HOSTEL DETAILS
   // =========================================================================
+  const roomsAvailableLabel =
+    typeof hostel.roomsAvailable === 'number'
+      ? `${hostel.roomsAvailable} left`
+      : 'N/A';
+
+  const ratingLabel =
+    typeof hostel.rating === 'number' && hostel.rating > 0
+      ? `${hostel.rating} / 5`
+      : 'New';
+
   return (
     <div className="hostel-details-page">
+      <ToastContainer position="bottom-end" className="p-3">
+        <Toast
+          bg={toast.variant}
+          show={toast.show}
+          onClose={() => setToast(prev => ({ ...prev, show: false }))}
+          delay={3000}
+          autohide
+        >
+          <Toast.Body className="text-white">
+            {toast.message}
+          </Toast.Body>
+        </Toast>
+      </ToastContainer>
+
       {/* Breadcrumb */}
       <Container className="mt-3">
         <Breadcrumb>
@@ -254,14 +328,14 @@ const HostelDetails = () => {
                     <div className="quick-info-item text-center p-3 bg-light rounded-2">
                       <i className="bi bi-star-fill fs-4 text-warning d-block mb-1"></i>
                       <small className="text-muted d-block">Rating</small>
-                      <strong>{hostel.rating} / 5</strong>
+                      <strong>{ratingLabel}</strong>
                     </div>
                   </Col>
                   <Col xs={6} sm={3}>
                     <div className="quick-info-item text-center p-3 bg-light rounded-2">
                       <i className="bi bi-door-open fs-4 text-info d-block mb-1"></i>
                       <small className="text-muted d-block">Rooms</small>
-                      <strong>{hostel.roomsAvailable} left</strong>
+                      <strong>{roomsAvailableLabel}</strong>
                     </div>
                   </Col>
                 </Row>
@@ -402,10 +476,17 @@ const HostelDetails = () => {
                 </Card.Header>
                 <Card.Body>
                   <div className="d-grid gap-2">
-                    <Button variant="outline-primary" className="text-start">
-                      <i className="bi bi-heart me-2"></i>
-                      Save to Favorites
-                    </Button>
+                    {showSave && (
+                      <Button
+                        variant={saved ? 'success' : 'outline-primary'}
+                        className="text-start"
+                        onClick={handleSave}
+                        disabled={saving || saved}
+                      >
+                        <i className={`bi ${saved ? 'bi-check-circle-fill' : 'bi-heart'} me-2`}></i>
+                        {saved ? 'Saved' : saving ? 'Saving...' : 'Save to Favorites'}
+                      </Button>
+                    )}
                     <Button variant="outline-primary" className="text-start">
                       <i className="bi bi-share me-2"></i>
                       Share Listing
@@ -415,6 +496,12 @@ const HostelDetails = () => {
                       Print Details
                     </Button>
                   </div>
+                  {saveError && (
+                    <div className="text-danger small mt-2">
+                      <i className="bi bi-exclamation-triangle-fill me-1"></i>
+                      {saveError}
+                    </div>
+                  )}
                 </Card.Body>
               </Card>
               

@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { Row, Col, Card, Button, Form, InputGroup, Table } from 'react-bootstrap';
-import { adminUser, adminActivity } from '../data/adminData';
+import { Row, Col, Card, Button, Form, Table } from 'react-bootstrap';
 import { useAuth } from '../auth/AuthContext';
 
 /**
@@ -47,6 +46,7 @@ const AdminProfile = ({ onPasswordChange }) => {
    * @returns {string}
    */
   const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
     return new Date(dateString).toLocaleDateString('en-KE', {
       year: 'numeric',
       month: 'short',
@@ -54,21 +54,6 @@ const AdminProfile = ({ onPasswordChange }) => {
       hour: '2-digit',
       minute: '2-digit'
     });
-  };
-
-  /**
-   * Get activity icon
-   * @param {string} action 
-   * @returns {string}
-   */
-  const getActivityIcon = (action) => {
-    if (action.includes('VERIFY')) return 'bi-check-circle text-success';
-    if (action.includes('APPROVE')) return 'bi-check-lg text-success';
-    if (action.includes('REJECT')) return 'bi-x-circle text-danger';
-    if (action.includes('DISABLE')) return 'bi-pause-circle text-warning';
-    if (action.includes('SUSPEND')) return 'bi-person-x text-danger';
-    if (action.includes('RESOLVE')) return 'bi-check-circle text-info';
-    return 'bi-activity text-primary';
   };
 
   return (
@@ -99,14 +84,14 @@ const AdminProfile = ({ onPasswordChange }) => {
                 <Col xs={12} md={6}>
                   <Form.Group>
                     <Form.Label>Admin ID</Form.Label>
-                    <Form.Control value={adminUser.id} disabled />
+                    <Form.Control value={user?.id || 'N/A'} disabled />
                   </Form.Group>
                 </Col>
                 <Col xs={12} md={6}>
                   <Form.Group>
                     <Form.Label>Role</Form.Label>
                     <Form.Control 
-                      value={adminUser.role === 'super_admin' ? 'Super Admin' : 'Admin'} 
+                      value={user?.role === 'admin' ? 'Admin' : 'Admin'} 
                       disabled 
                     />
                   </Form.Group>
@@ -115,21 +100,21 @@ const AdminProfile = ({ onPasswordChange }) => {
               <Row className="mb-3">
                 <Col xs={12} md={6}>
                   <Form.Group>
-                    <Form.Label>Name</Form.Label>
-                    <Form.Control value={user?.name || adminUser.name} disabled />
-                  </Form.Group>
-                </Col>
-                <Col xs={12} md={6}>
-                  <Form.Group>
-                    <Form.Label>Email</Form.Label>
-                    <Form.Control value={user?.email || adminUser.email} disabled />
-                  </Form.Group>
-                </Col>
-              </Row>
-              <Form.Group className="mb-0">
-                <Form.Label>Member Since</Form.Label>
-                <Form.Control value={formatDate(adminUser.createdAt)} disabled />
-              </Form.Group>
+                  <Form.Label>Name</Form.Label>
+                  <Form.Control value={user?.name || 'Admin'} disabled />
+                </Form.Group>
+              </Col>
+              <Col xs={12} md={6}>
+                <Form.Group>
+                  <Form.Label>Email</Form.Label>
+                  <Form.Control value={user?.email || 'N/A'} disabled />
+                </Form.Group>
+              </Col>
+            </Row>
+            <Form.Group className="mb-0">
+              <Form.Label>Member Since</Form.Label>
+              <Form.Control value={formatDate(user?.createdAt)} disabled />
+            </Form.Group>
             </Card.Body>
           </Card>
         </Col>
@@ -242,18 +227,11 @@ const AdminProfile = ({ onPasswordChange }) => {
                 </tr>
               </thead>
               <tbody>
-                {adminActivity.map(activity => (
-                  <tr key={activity.id}>
-                    <td>
-                      <div className="d-flex align-items-center">
-                        <i className={`bi ${getActivityIcon(activity.action)} me-2`}></i>
-                        <span>{activity.action.replace(/_/g, ' ')}</span>
-                      </div>
-                    </td>
-                    <td>{activity.target}</td>
-                    <td>{formatDate(activity.timestamp)}</td>
-                  </tr>
-                ))}
+                <tr>
+                  <td colSpan={3} className="text-center py-4 text-muted">
+                    No activity recorded yet.
+                  </td>
+                </tr>
               </tbody>
             </Table>
           </div>

@@ -49,8 +49,14 @@ router.delete('/:id',
 
 // ========== PUBLIC & STUDENT ROUTES ==========
 
-// Get single hostel (public access)
+// Public listings (approved + active only)
+router.get('/public',
+  hostelController.getPublicHostels
+);
+
+// Get single hostel (authenticated users only)
 router.get('/:id',
+  authMiddleware,
   hostelController.getHostel
 );
 

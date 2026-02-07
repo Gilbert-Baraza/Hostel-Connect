@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { Container, Breadcrumb } from 'react-bootstrap';
 import HostelList from '../components/HostelList';
 import { Link } from 'react-router-dom';
+import useDocumentTitle from '../hooks/useDocumentTitle';
 
 /**
  * Hostels Page Component
  * Main page for browsing and searching hostels
  */
 const Hostels = () => {
+  useDocumentTitle('Find Hostels', { append: true });
   const [isMobile, setIsMobile] = useState(false);
 
   // Detect mobile screen size
@@ -26,16 +28,7 @@ const Hostels = () => {
       {/* Page Header */}
       <section className="page-header-section">
         <Container>
-          {/* Breadcrumb */}
-          <Breadcrumb className="mb-3">
-            <Breadcrumb.Item linkAs={Link} linkProps={{ to: '/' }}>
-              <i className="bi bi-house-fill me-1"></i>
-              Home
-            </Breadcrumb.Item>
-            <Breadcrumb.Item active>
-              Hostels
-            </Breadcrumb.Item>
-          </Breadcrumb>
+          
 
           {/* Title & Subtitle */}
           <div className="page-header-content">

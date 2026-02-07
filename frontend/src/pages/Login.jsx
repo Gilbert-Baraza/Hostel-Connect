@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Container, Row, Col, Card, Form, Button, Alert, Breadcrumb } from 'react-bootstrap';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import useDocumentTitle from '../hooks/useDocumentTitle';
 
 /**
  * Login Page Component
@@ -16,6 +17,7 @@ import { useAuth } from '../auth/AuthContext';
  * - Backend API integration
  */
 const Login = () => {
+  useDocumentTitle('Login');
   const navigate = useNavigate();
   const location = useLocation();
   const { login } = useAuth();

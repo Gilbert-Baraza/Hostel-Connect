@@ -3,6 +3,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
+const { ensureAdminUser } = require('./utils/seedAdmin');
 
 // Import routes
 const authRoutes = require('./routes/authRoutes');
@@ -10,6 +11,8 @@ const hostelRoutes = require('./routes/hostelRoutes');
 const roomRoutes = require('./routes/roomRoutes');
 const bookingRoutes = require('./routes/bookingRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
+const adminRoutes = require('./routes/adminRoutes');
+const studentRoutes = require('./routes/studentRoutes');
 
 // Create Express app
 const app = express();
@@ -66,6 +69,8 @@ app.use('/api/hostels', hostelRoutes);
 app.use('/api/uploads', uploadRoutes);
 app.use('/api', roomRoutes);
 app.use('/api', bookingRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/students', studentRoutes);
 
 // 404 handler
 app.use((req, res) => {
@@ -127,8 +132,13 @@ const PORT = process.env.PORT || 5000;
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/hostel_connect';
 
 mongoose.connect(MONGODB_URI)
-  .then(() => {
+  .then(async () => {
     console.log('Connected to MongoDB');
+    try {
+      await ensureAdminUser();
+    } catch (error) {
+      console.error('Admin seed error:', error);
+    }
     app.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
     });

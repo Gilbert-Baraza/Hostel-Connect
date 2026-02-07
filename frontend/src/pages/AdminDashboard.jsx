@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
-import { Container, Row, Col, Button, Breadcrumb } from 'react-bootstrap';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { useAuth } from '../auth/AuthContext';
+import { Container, Button } from 'react-bootstrap';
+import { useLocation, useNavigate } from 'react-router-dom';
 import AdminSidebar from '../components/AdminSidebar';
 import AdminOverview from '../components/AdminOverview';
 import LandlordVerification from '../components/LandlordVerification';
@@ -30,7 +29,6 @@ import AdminProfile from '../components/AdminProfile';
  * Protected: admin role only
  */
 const AdminDashboard = () => {
-  const { user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -180,15 +178,7 @@ const AdminDashboard = () => {
         variant="primary"
         className="mobile-sidebar-toggle d-lg-none position-fixed"
         onClick={() => setSidebarOpen(!sidebarOpen)}
-        style={{ 
-          top: '80px', 
-          left: '10px', 
-          zIndex: 1060,
-          borderRadius: '50%',
-          width: '50px',
-          height: '50px',
-          padding: '0'
-        }}
+        aria-label="Toggle sidebar"
       >
         <i className={`bi ${sidebarOpen ? 'bi-x' : 'bi-list'} fs-4`}></i>
       </Button>
@@ -197,50 +187,12 @@ const AdminDashboard = () => {
 
       <main className="dashboard-content">
         <Container fluid className="px-4 py-4">
-          {/* Breadcrumb */}
-          <Breadcrumb className="mb-3">
-            <Breadcrumb.Item linkAs={Link} linkProps={{ to: '/' }}>
-              <i className="bi bi-house-fill me-1"></i> Home
-            </Breadcrumb.Item>
-            <Breadcrumb.Item active>
-              <i className="bi bi-shield-gear me-1"></i>
-              Admin Dashboard
-            </Breadcrumb.Item>
-            {currentSection !== 'overview' && (
-              <Breadcrumb.Item active>
-                {getPageTitle()}
-              </Breadcrumb.Item>
-            )}
-          </Breadcrumb>
+          
 
           {/* Main Content */}
           {renderSection()}
         </Container>
       </main>
-
-      <style>{`
-        .admin-dashboard {
-          min-height: 100vh;
-          background: #f8f9fa;
-        }
-
-        .dashboard-content {
-          margin-left: 0;
-          transition: margin-left 0.3s ease;
-        }
-
-        @media (min-width: 991.98px) {
-          .dashboard-content {
-            margin-left: 260px;
-          }
-        }
-
-        @media (max-width: 991.98px) {
-          .dashboard-content {
-            padding-top: 60px;
-          }
-        }
-      `}</style>
     </div>
   );
 };

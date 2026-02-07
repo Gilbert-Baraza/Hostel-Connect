@@ -35,8 +35,8 @@ const getHostels = async (options, role, userId) => {
   
   // Role-based filtering
   if (role === 'student' || role === 'public') {
-    // Students/public: only approved and active
-    query.verificationStatus = 'approved';
+    // Students/public: show non-rejected active listings (pending + approved)
+    query.verificationStatus = { $ne: 'rejected' };
     query.isActive = true;
   } else if (role === 'landlord') {
     // Landlords: only their own hostels
@@ -49,7 +49,7 @@ const getHostels = async (options, role, userId) => {
   if (filters.city) query['address.city'] = filters.city;
   if (filters.minPrice) query['pricing.minPrice'] = { $gte: filters.minPrice };
   if (filters.maxPrice) query['pricing.maxPrice'] = { $lte: filters.maxPrice };
-  if (filters.verificationStatus && role !== 'student') {
+  if (filters.verificationStatus && (role === 'admin' || role === 'landlord')) {
     query.verificationStatus = filters.verificationStatus;
   }
   
@@ -177,7 +177,7 @@ const updateHostel = async (id, data, userId, role) => {
  * @param {string} adminId - Admin user ID
  * @returns {Promise<Object>} Updated hostel
  */
-const disableHostel = async (id, adminId) => {
+const disableHostel = async (id, adminId, reason) => {
   const hostel = await Hostel.findById(id);
   
   if (!hostel) {
@@ -189,7 +189,7 @@ const disableHostel = async (id, adminId) => {
     ...hostel.verificationNotes,
     reviewedBy: adminId,
     reviewedAt: new Date(),
-    adminComments: 'Disabled by admin'
+    adminComments: reason ? `Disabled by admin: ${reason}` : 'Disabled by admin'
   };
   
   await hostel.save();
@@ -202,7 +202,7 @@ const disableHostel = async (id, adminId) => {
  * @param {string} adminId - Admin user ID
  * @returns {Promise<Object>} Updated hostel
  */
-const enableHostel = async (id, adminId) => {
+const enableHostel = async (id, adminId, reason) => {
   const hostel = await Hostel.findById(id);
   
   if (!hostel) {
@@ -214,7 +214,7 @@ const enableHostel = async (id, adminId) => {
     ...hostel.verificationNotes,
     reviewedBy: adminId,
     reviewedAt: new Date(),
-    adminComments: 'Enabled by admin'
+    adminComments: reason ? `Enabled by admin: ${reason}` : 'Enabled by admin'
   };
   
   await hostel.save();

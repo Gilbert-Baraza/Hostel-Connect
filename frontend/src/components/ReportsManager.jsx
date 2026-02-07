@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
-import { Row, Col, Card, Button, Table, Badge, Modal, Form, InputGroup } from 'react-bootstrap';
-import { reports, getHostelById } from '../data/adminData';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Row, Col, Card, Button, Table, Badge, Modal, Form, InputGroup, Spinner, Alert } from 'react-bootstrap';
+import { getAdminReports, updateReport } from '../api/admin';
+import { disableHostel } from '../api/hostels';
+import { normalizeAdminReport } from '../utils/adminMappers';
 
 /**
  * ReportsManager Component
@@ -17,13 +19,33 @@ import { reports, getHostelById } from '../data/adminData';
  * @param {Function} props.onReportUpdate - Callback when report status changes
  */
 const ReportsManager = ({ onReportUpdate }) => {
-  const [reportsList, setReportsList] = useState(reports);
+  const [reportsList, setReportsList] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [showDisableModal, setShowDisableModal] = useState(false);
   const [selectedReport, setSelectedReport] = useState(null);
   const [adminNotes, setAdminNotes] = useState('');
   const [filter, setFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
+
+  const fetchReports = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await getAdminReports({ limit: 500 });
+      const list = response?.data?.reports || [];
+      setReportsList(list.map(normalizeAdminReport));
+    } catch (err) {
+      setError(err?.message || 'Failed to load reports');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchReports();
+  }, [fetchReports]);
 
   /**
    * Get filtered and searched reports
@@ -60,20 +82,25 @@ const ReportsManager = ({ onReportUpdate }) => {
   /**
    * Mark report as reviewed
    */
-  const handleReview = () => {
+  const handleReview = async () => {
     if (!selectedReport) return;
-    
-    setReportsList(prev => 
-      prev.map(r => 
-        r.id === selectedReport.id 
-          ? { ...r, status: 'reviewed', adminNotes }
-          : r
-      )
-    );
-    onReportUpdate && onReportUpdate(selectedReport.id, 'reviewed');
-    setShowReviewModal(false);
-    setSelectedReport(null);
-    setAdminNotes('');
+
+    try {
+      await updateReport(selectedReport.id, { status: 'reviewed', adminNotes });
+      setReportsList(prev => 
+        prev.map(r => 
+          r.id === selectedReport.id 
+            ? { ...r, status: 'reviewed', adminNotes }
+            : r
+        )
+      );
+      onReportUpdate && onReportUpdate(selectedReport.id, 'reviewed');
+      setShowReviewModal(false);
+      setSelectedReport(null);
+      setAdminNotes('');
+    } catch (err) {
+      setError(err?.message || 'Failed to update report');
+    }
   };
 
   /**
@@ -82,45 +109,59 @@ const ReportsManager = ({ onReportUpdate }) => {
    */
   const openDisableModal = (report) => {
     setSelectedReport(report);
+    setAdminNotes('');
     setShowDisableModal(true);
   };
 
   /**
    * Mark report as resolved and disable listing
    */
-  const handleResolveAndDisable = () => {
+  const handleResolveAndDisable = async () => {
     if (!selectedReport) return;
-    
-    setReportsList(prev => 
-      prev.map(r => 
-        r.id === selectedReport.id 
-          ? { ...r, status: 'resolved', adminNotes: `Listing disabled. ${adminNotes}` }
-          : r
-      )
-    );
-    onReportUpdate && onReportUpdate(selectedReport.id, 'resolved');
-    setShowDisableModal(false);
-    setSelectedReport(null);
-    setAdminNotes('');
+
+    try {
+      if (selectedReport.hostelId) {
+        await disableHostel(selectedReport.hostelId, { reason: adminNotes });
+      }
+      await updateReport(selectedReport.id, { status: 'resolved', adminNotes });
+      setReportsList(prev => 
+        prev.map(r => 
+          r.id === selectedReport.id 
+            ? { ...r, status: 'resolved', adminNotes: adminNotes }
+            : r
+        )
+      );
+      onReportUpdate && onReportUpdate(selectedReport.id, 'resolved');
+      setShowDisableModal(false);
+      setSelectedReport(null);
+      setAdminNotes('');
+    } catch (err) {
+      setError(err?.message || 'Failed to resolve report');
+    }
   };
 
   /**
    * Mark report as resolved without disabling
    */
-  const handleResolve = () => {
+  const handleResolve = async () => {
     if (!selectedReport) return;
-    
-    setReportsList(prev => 
-      prev.map(r => 
-        r.id === selectedReport.id 
-          ? { ...r, status: 'resolved', adminNotes }
-          : r
-      )
-    );
-    onReportUpdate && onReportUpdate(selectedReport.id, 'resolved');
-    setShowReviewModal(false);
-    setSelectedReport(null);
-    setAdminNotes('');
+
+    try {
+      await updateReport(selectedReport.id, { status: 'resolved', adminNotes });
+      setReportsList(prev => 
+        prev.map(r => 
+          r.id === selectedReport.id 
+            ? { ...r, status: 'resolved', adminNotes }
+            : r
+        )
+      );
+      onReportUpdate && onReportUpdate(selectedReport.id, 'resolved');
+      setShowReviewModal(false);
+      setSelectedReport(null);
+      setAdminNotes('');
+    } catch (err) {
+      setError(err?.message || 'Failed to resolve report');
+    }
   };
 
   /**
@@ -177,6 +218,7 @@ const ReportsManager = ({ onReportUpdate }) => {
    * @returns {string}
    */
   const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
     return new Date(dateString).toLocaleDateString('en-KE', {
       year: 'numeric',
       month: 'short',
@@ -193,6 +235,32 @@ const ReportsManager = ({ onReportUpdate }) => {
     reviewed: reportsList.filter(r => r.status === 'reviewed').length,
     resolved: reportsList.filter(r => r.status === 'resolved').length
   };
+
+  if (loading) {
+    return (
+      <div className="text-center py-5">
+        <Spinner animation="border" variant="primary" role="status">
+          <span className="visually-hidden">Loading...</span>
+        </Spinner>
+        <p className="mt-3 text-muted">Loading reports...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <Alert variant="danger" className="text-center py-4">
+        <div className="mb-3">
+          <i className="bi bi-exclamation-triangle-fill me-2"></i>
+          {error}
+        </div>
+        <Button variant="outline-danger" onClick={fetchReports}>
+          <i className="bi bi-arrow-clockwise me-2"></i>
+          Try Again
+        </Button>
+      </Alert>
+    );
+  }
 
   return (
     <div className="reports-manager">

@@ -1,0 +1,18 @@
+import { apiRequest } from './client';
+
+export const getMyBookings = async (params = {}) => {
+  const searchParams = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === '') return;
+    searchParams.append(key, value);
+  });
+  const queryString = searchParams.toString();
+  return apiRequest(`/api/bookings/my${queryString ? `?${queryString}` : ''}`);
+};
+
+export const cancelBooking = async (bookingId, payload) => {
+  return apiRequest(`/api/bookings/${bookingId}/cancel`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload || {})
+  });
+};
