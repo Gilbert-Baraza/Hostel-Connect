@@ -1,4 +1,7 @@
+const mongoose = require('mongoose');
 const bookingService = require('../services/bookingService');
+
+const isValidObjectId = (value) => mongoose.Types.ObjectId.isValid(value);
 
 /**
  * Create Booking Controller
@@ -8,6 +11,13 @@ exports.createBooking = async (req, res) => {
   try {
     const { roomId } = req.params;
     const studentId = req.userId;
+
+    if (!isValidObjectId(roomId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid room id'
+      });
+    }
     
     // Validate input
     const errors = bookingService.validateBookingInput(req.body);
@@ -19,12 +29,12 @@ exports.createBooking = async (req, res) => {
       });
     }
 
-    const { startDate, endDate } = req.body;
+    const { startDate } = req.body;
 
     const booking = await bookingService.createBooking(
       roomId,
       studentId,
-      { startDate, endDate },
+      { startDate },
       {
         ipAddress: req.ip,
         userAgent: req.get('User-Agent')
@@ -46,7 +56,11 @@ exports.createBooking = async (req, res) => {
       });
     }
     
-    if (error.message.includes('not available') || error.message.includes('Not authorized')) {
+    if (error.message.includes('not available') ||
+        error.message.includes('Not authorized') ||
+        error.message.includes('not approved') ||
+        error.message.includes('not active') ||
+        error.message.includes('secure room')) {
       return res.status(400).json({
         success: false,
         message: error.message
@@ -98,6 +112,13 @@ exports.getHostelBookings = async (req, res) => {
     const { page, limit, status } = req.query;
     const landlordId = req.userId;
 
+    if (!isValidObjectId(hostelId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid hostel id'
+      });
+    }
+
     const result = await bookingService.getHostelBookings(
       hostelId,
       landlordId,
@@ -142,6 +163,13 @@ exports.getBooking = async (req, res) => {
     const userId = req.userId;
     const role = req.userRole;
 
+    if (!isValidObjectId(bookingId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid booking id'
+      });
+    }
+
     const booking = await bookingService.getBookingById(bookingId, userId, role);
 
     res.json({
@@ -182,6 +210,13 @@ exports.decideBooking = async (req, res) => {
     const { action, reason } = req.body;
     const landlordId = req.userId;
 
+    if (!isValidObjectId(bookingId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid booking id'
+      });
+    }
+
     if (!action || !['approve', 'reject'].includes(action)) {
       return res.status(400).json({
         success: false,
@@ -218,7 +253,11 @@ exports.decideBooking = async (req, res) => {
       });
     }
     
-    if (error.message.includes('Not authorized') || error.message.includes('cannot be decided')) {
+    if (error.message.includes('Not authorized') ||
+        error.message.includes('cannot be decided') ||
+        error.message.includes('Room is not available') ||
+        error.message.includes('active booking') ||
+        error.message.includes('Invalid action')) {
       return res.status(400).json({
         success: false,
         message: error.message
@@ -241,6 +280,13 @@ exports.cancelBooking = async (req, res) => {
     const { bookingId } = req.params;
     const { reason } = req.body;
     const studentId = req.userId;
+
+    if (!isValidObjectId(bookingId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid booking id'
+      });
+    }
 
     const booking = await bookingService.cancelBooking(bookingId, studentId, reason);
 
@@ -282,6 +328,13 @@ exports.forceCancelBooking = async (req, res) => {
     const { bookingId } = req.params;
     const { reason } = req.body;
     const adminId = req.userId;
+
+    if (!isValidObjectId(bookingId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid booking id'
+      });
+    }
 
     const booking = await bookingService.forceCancelBooking(bookingId, adminId, reason);
 

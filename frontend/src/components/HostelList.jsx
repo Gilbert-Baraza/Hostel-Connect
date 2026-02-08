@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Row, Col, Spinner, Alert, Badge, Button, Toast, ToastContainer } from 'react-bootstrap';
+import { useSearchParams } from 'react-router-dom';
 import HostelCard from './HostelCard';
 import SearchBar from './SearchBar';
 import FilterSidebar from './FilterSidebar';
@@ -14,15 +15,21 @@ import { useAuth } from '../auth/AuthContext';
  */
 const HostelList = ({ isMobile }) => {
   const { isAuthenticated, user } = useAuth();
+  const [searchParams] = useSearchParams();
   const [hostels, setHostels] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [savedHostelIds, setSavedHostelIds] = useState([]);
   const [toast, setToast] = useState({ show: false, message: '', variant: 'success' });
 
-  // State for search and filters
-  const [searchTerm, setSearchTerm] = useState('');
-  const [budget, setBudget] = useState('');
+  // Initialize state from URL query params
+  const initialLocation = searchParams.get('location') || '';
+  const initialBudget = searchParams.get('budget') || '';
+  const initialType = searchParams.get('type') || '';
+  
+  const [searchTerm, setSearchTerm] = useState(initialLocation);
+  const [budget, setBudget] = useState(initialBudget);
+  const [hostelType, setHostelType] = useState(initialType);
   const [filters, setFilters] = useState({
     priceRange: '',
     distance: '',
@@ -127,10 +134,23 @@ const HostelList = ({ isMobile }) => {
         matchesVerified = hostel.verified;
       }
 
+      // Hostel type filter (male, female, mixed)
+      let matchesType = true;
+      if (hostelType) {
+        const hostelGender = (hostel.gender || '').toLowerCase();
+        if (hostelType === 'male') {
+          matchesType = hostelGender === 'male';
+        } else if (hostelType === 'female') {
+          matchesType = hostelGender === 'female';
+        } else if (hostelType === 'mixed') {
+          matchesType = hostelGender === 'mixed';
+        }
+      }
+
       return matchesSearch && matchesBudget && matchesPriceRange && 
-             matchesDistance && matchesAmenities && matchesVerified;
+             matchesDistance && matchesAmenities && matchesVerified && matchesType;
     });
-  }, [searchTerm, budget, filters, hostels]);
+  }, [searchTerm, budget, hostelType, filters, hostels]);
 
   // Handle search
   const handleSearch = () => {
@@ -142,6 +162,7 @@ const HostelList = ({ isMobile }) => {
   const clearAllFilters = () => {
     setSearchTerm('');
     setBudget('');
+    setHostelType('');
     setFilters({
       priceRange: '',
       distance: '',
@@ -186,6 +207,8 @@ const HostelList = ({ isMobile }) => {
           setSearchTerm={setSearchTerm}
           budget={budget}
           setBudget={setBudget}
+          hostelType={hostelType}
+          setHostelType={setHostelType}
           onSearch={handleSearch}
         />
         
@@ -235,6 +258,8 @@ const HostelList = ({ isMobile }) => {
         setSearchTerm={setSearchTerm}
         budget={budget}
         setBudget={setBudget}
+        hostelType={hostelType}
+        setHostelType={setHostelType}
         onSearch={handleSearch}
       />
 

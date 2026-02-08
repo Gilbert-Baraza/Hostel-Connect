@@ -95,6 +95,10 @@ const roomSchema = new mongoose.Schema({
   },
   disableReason: {
     type: String
+  },
+  bookingVersion: {
+    type: Number,
+    default: 0
   }
 }, {
   timestamps: true

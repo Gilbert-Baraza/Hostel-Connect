@@ -79,7 +79,7 @@ const LandlordHostelList = ({ hostels, onAddHostel, onEditHostel, onDeleteHostel
   };
 
   return (
-    <>
+    <React.Fragment>
       <ToastContainer position="bottom-end" className="p-3">
         <Toast
           bg={toast.variant}
@@ -95,8 +95,8 @@ const LandlordHostelList = ({ hostels, onAddHostel, onEditHostel, onDeleteHostel
       </ToastContainer>
 
       <Card className="hostel-list-card border-0 shadow-sm">
-        <Card.Header className="bg-white d-flex justify-content-between align-items-center">
-          <h5 className="mb-0 fw-bold">
+        <Card.Header className="bg-white d-flex justify-content-between align-items-center" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+          <h5 className="mb-0 fw-bold text-white">
             <i className="bi bi-building me-2"></i>
             My Hostels
           </h5>
@@ -200,7 +200,6 @@ const LandlordHostelList = ({ hostels, onAddHostel, onEditHostel, onDeleteHostel
         </Card.Body>
       </Card>
 
-      {/* Add/Edit Hostel Modal */}
       <Modal show={showAddModal} onHide={handleCloseModal} size="lg">
         <Modal.Header closeButton>
           <Modal.Title>
@@ -222,7 +221,6 @@ const LandlordHostelList = ({ hostels, onAddHostel, onEditHostel, onDeleteHostel
         </Modal.Body>
       </Modal>
 
-      {/* Delete Confirmation Modal */}
       <Modal show={showDeleteModal} onHide={() => setShowDeleteModal(false)}>
         <Modal.Header closeButton>
           <Modal.Title className="text-danger">
@@ -246,7 +244,17 @@ const LandlordHostelList = ({ hostels, onAddHostel, onEditHostel, onDeleteHostel
           </Button>
         </Modal.Footer>
       </Modal>
-    </>
+
+      <style>{`
+        .hostel-list-card {
+          transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        
+        .hostel-list-card:hover {
+          box-shadow: 0 4px 12px rgba(102, 126, 234, 0.25) !important;
+        }
+      `}</style>
+    </React.Fragment>
   );
 };
 

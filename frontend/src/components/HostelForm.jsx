@@ -1,11 +1,118 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Form, Button, Card, Row, Col, Alert, Badge, Spinner } from 'react-bootstrap';
 import { uploadHostelImages } from '../api/uploads';
+import { geocodeLocation } from '../api/geocode';
 
 /**
  * HostelForm Component
  * Form for adding or editing hostel information
  */
+const KENYAN_UNIVERSITIES = [
+  // Public Chartered Universities
+  { name: 'Alupe University', city: '', county: '' },
+  { name: 'Chuka University', city: 'Chuka', county: 'Tharaka-Nithi' },
+  { name: 'Dedan Kimathi University of Technology', city: 'Nyeri', county: 'Nyeri' },
+  { name: 'Egerton University', city: 'Njoro', county: 'Nakuru' },
+  { name: 'Garissa University', city: 'Garissa', county: 'Garissa' },
+  { name: 'Jaramogi Oginga Odinga University of Science and Technology', city: 'Bondo', county: 'Siaya' },
+  { name: 'Jomo Kenyatta University of Agriculture and Technology', city: 'Juja', county: 'Kiambu' },
+  { name: 'Kaimosi Friends University', city: 'Kaimosi', county: 'Vihiga' },
+  { name: 'Karatina University', city: 'Karatina', county: 'Nyeri' },
+  { name: 'Kenyatta University', city: 'Nairobi', county: 'Nairobi' },
+  { name: 'Kibabii University', city: 'Bungoma', county: 'Bungoma' },
+  { name: 'Kirinyaga University', city: 'Kerugoya', county: 'Kirinyaga' },
+  { name: 'Kisii University', city: 'Kisii', county: 'Kisii' },
+  { name: 'Laikipia University', city: 'Nyahururu', county: 'Laikipia' },
+  { name: 'Maasai Mara University', city: 'Narok', county: 'Narok' },
+  { name: 'Machakos University', city: 'Machakos', county: 'Machakos' },
+  { name: 'Maseno University', city: 'Maseno', county: 'Kisumu' },
+  { name: 'Masinde Muliro University of Science and Technology', city: 'Kakamega', county: 'Kakamega' },
+  { name: 'Meru University of Science and Technology', city: 'Meru', county: 'Meru' },
+  { name: 'Moi University', city: 'Eldoret', county: 'Uasin Gishu' },
+  { name: 'Multimedia University of Kenya', city: 'Nairobi', county: 'Nairobi' },
+  { name: "Murang'a University of Technology", city: 'Muranga', county: 'Muranga' },
+  { name: 'Pwani University', city: 'Kilifi', county: 'Kilifi' },
+  { name: 'Rongo University', city: 'Rongo', county: 'Migori' },
+  { name: 'South Eastern Kenya University', city: 'Kitui', county: 'Kitui' },
+  { name: 'Taita Taveta University', city: 'Voi', county: 'Taita-Taveta' },
+  { name: 'Technical University of Kenya', city: 'Nairobi', county: 'Nairobi' },
+  { name: 'Technical University of Mombasa', city: 'Mombasa', county: 'Mombasa' },
+  { name: 'The Co-operative University of Kenya', city: 'Nairobi', county: 'Nairobi' },
+  { name: 'Tharaka University', city: '', county: '' },
+  { name: 'Tom Mboya University', city: '', county: '' },
+  { name: 'University of Eldoret', city: 'Eldoret', county: 'Uasin Gishu' },
+  { name: 'University of Embu', city: 'Embu', county: 'Embu' },
+  { name: 'University of Kabianga', city: '', county: '' },
+  { name: 'University of Nairobi', city: 'Nairobi', county: 'Nairobi' },
+
+  // Specialized Degree Awarding Universities (Public)
+  { name: 'National Defence University-Kenya', city: '', county: '' },
+  { name: 'National Intelligence and Research University', city: '', county: '' },
+  { name: 'Open University of Kenya', city: '', county: '' },
+
+  // Private Chartered Universities
+  { name: 'Adventist University of Africa', city: 'Nairobi', county: 'Nairobi' },
+  { name: 'Africa International University', city: 'Nairobi', county: 'Nairobi' },
+  { name: 'Africa Nazarene University', city: 'Athi River', county: 'Machakos' },
+  { name: 'Aga Khan University', city: 'Nairobi', county: 'Nairobi' },
+  { name: 'Catholic University of Eastern Africa (CUEA)', city: 'Nairobi', county: 'Nairobi' },
+  { name: 'Daystar University', city: 'Athi River', county: 'Machakos' },
+  { name: 'Great Lakes University of Kisumu', city: '', county: '' },
+  { name: 'Islamic University of Kenya', city: '', county: '' },
+  { name: 'Kabarak University', city: 'Nakuru', county: 'Nakuru' },
+  { name: 'KAG EAST University', city: '', county: '' },
+  { name: 'KCA University', city: 'Nairobi', county: 'Nairobi' },
+  { name: 'Kenya Highlands University', city: '', county: '' },
+  { name: 'Kenya Methodist University', city: 'Meru', county: 'Meru' },
+  { name: "Kiriri Women's University of Science and Technology", city: 'Nairobi', county: 'Nairobi' },
+  { name: 'Lukenya University', city: '', county: '' },
+  { name: 'Management University of Africa', city: 'Nairobi', county: 'Nairobi' },
+  { name: 'Mount Kenya University', city: 'Thika', county: 'Kiambu' },
+  { name: 'Pan Africa Christian University', city: 'Nairobi', county: 'Nairobi' },
+  { name: 'Presbyterian University of East Africa', city: 'Kikuyu', county: 'Kiambu' },
+  { name: 'Scott Christian University', city: 'Machakos', county: 'Machakos' },
+  { name: "St. Paul's University", city: 'Limuru', county: 'Kiambu' },
+  { name: 'Strathmore University', city: 'Nairobi', county: 'Nairobi' },
+  { name: 'Tangaza University', city: '', county: '' },
+  { name: 'The East African University', city: 'Kitengela', county: 'Kajiado' },
+  { name: 'United States International University', city: 'Nairobi', county: 'Nairobi' },
+  { name: 'Umma University', city: '', county: '' },
+  { name: 'University of Eastern Africa, Baraton', city: '', county: '' },
+  { name: 'Zetech University', city: 'Ruiru', county: 'Kiambu' },
+
+  // National Polytechnics (Top Colleges)
+  { name: 'Baringo National Polytechnic', city: '', county: '' },
+  { name: 'Bungoma National Polytechnic', city: '', county: '' },
+  { name: 'Kabete National Polytechnic', city: '', county: '' },
+  { name: 'Kaiboi National Polytechnic', city: '', county: '' },
+  { name: 'Kaimosi Friends National Polytechnic', city: '', county: '' },
+  { name: 'Kenya Coast National Polytechnic', city: '', county: '' },
+  { name: 'Kericho National Polytechnic', city: '', county: '' },
+  { name: 'Kiambu National Polytechnic', city: '', county: '' },
+  { name: 'Kisii National Polytechnic', city: '', county: '' },
+  { name: 'Kisiwa National Polytechnic', city: '', county: '' },
+  { name: 'The Kisumu National Polytechnic', city: '', county: '' },
+  { name: 'Kitale National Polytechnic', city: '', county: '' },
+  { name: 'Mawego National Polytechnic', city: '', county: '' },
+  { name: 'Meru National Polytechnic', city: '', county: '' },
+  { name: 'Michuki National Polytechnic', city: '', county: '' },
+  { name: 'Mitunguu National Polytechnic', city: '', county: '' },
+  { name: 'The Nairobi National Polytechnic', city: '', county: '' },
+  { name: 'North Eastern National Polytechnic', city: '', county: '' },
+  { name: 'Nyandarua National Polytechnic', city: '', county: '' },
+  { name: 'Nyamira National Polytechnic', city: '', county: '' },
+  { name: 'The Nyeri National Polytechnic', city: '', county: '' },
+  { name: "The Ol'Lessos National Polytechnic", city: '', county: '' },
+  { name: 'Rift Valley National Polytechnic', city: '', county: '' },
+  { name: 'The Shamberere National Polytechnic', city: '', county: '' },
+  { name: 'Siaya National Polytechnic', city: '', county: '' },
+  { name: 'Sigalagala National Polytechnic', city: '', county: '' },
+  { name: 'Taita Taveta National Polytechnic', city: '', county: '' },
+  { name: 'The Eldoret National Polytechnic', city: '', county: '' },
+  { name: 'Jeremiah Nyagah National Polytechnic', city: '', county: '' },
+  { name: 'Tseikuru National Polytechnic', city: '', county: '' }
+];
+
 const HostelForm = ({ initialData = {}, onSubmit, onCancel }) => {
   const normalizeAmenities = (amenities = []) => (
     amenities.map((amenity) => (typeof amenity === 'string' ? amenity : amenity?.name)).filter(Boolean)
@@ -27,11 +134,13 @@ const HostelForm = ({ initialData = {}, onSubmit, onCancel }) => {
   }, [initialData.image, initialData.images]);
 
   const initialFormData = useMemo(() => {
-    const initialDistance = initialData.distanceFromCampus ?? initialData.distance;
+    const initialDistance =
+      initialData.distanceFromCampus ?? initialData.university?.distanceKm ?? initialData.distance;
 
     return ({
     name: initialData.name || '',
     hostelType: initialData.hostelType || '',
+    universityName: initialData.university?.name || '',
     address: {
       street: initialData.address?.street || '',
       city: initialData.address?.city || '',
@@ -40,6 +149,11 @@ const HostelForm = ({ initialData = {}, onSubmit, onCancel }) => {
     distance: initialDistance === undefined || initialDistance === null ? '' : String(initialDistance),
     description: initialData.description || '',
     amenities: normalizeAmenities(initialData.amenities || []),
+    rules: Array.isArray(initialData.houseRules?.additionalRules)
+      ? initialData.houseRules.additionalRules
+      : Array.isArray(initialData.rules)
+        ? initialData.rules
+        : [],
     images: initialImages,
     isActive: initialData.isActive !== undefined ? initialData.isActive : true,
     coordinates: {
@@ -63,6 +177,11 @@ const HostelForm = ({ initialData = {}, onSubmit, onCancel }) => {
   const [errors, setErrors] = useState({});
   const [uploadingImages, setUploadingImages] = useState(false);
   const [uploadError, setUploadError] = useState(null);
+  const [geocodingUniversity, setGeocodingUniversity] = useState(false);
+  const [geocodeError, setGeocodeError] = useState(null);
+  const [locating, setLocating] = useState(false);
+  const [locationError, setLocationError] = useState(null);
+  const [ruleInput, setRuleInput] = useState('');
 
   const amenityOptions = [
     'Water', 'WiFi', 'Security', 'Electricity', 
@@ -131,6 +250,9 @@ const HostelForm = ({ initialData = {}, onSubmit, onCancel }) => {
         [name]: value
       }
     }));
+    if (locationError) {
+      setLocationError(null);
+    }
     if (errors.coordinates) {
       setErrors(prev => ({ ...prev, coordinates: null }));
     }
@@ -148,6 +270,23 @@ const HostelForm = ({ initialData = {}, onSubmit, onCancel }) => {
       }
       return { ...prev, amenities: [...currentAmenities, amenity] };
     });
+  };
+
+  const handleRuleAdd = () => {
+    const trimmed = ruleInput.trim();
+    if (!trimmed) return;
+    setFormData(prev => ({
+      ...prev,
+      rules: [...(prev.rules || []), trimmed]
+    }));
+    setRuleInput('');
+  };
+
+  const handleRuleRemove = (index) => {
+    setFormData(prev => ({
+      ...prev,
+      rules: (prev.rules || []).filter((_, idx) => idx !== index)
+    }));
   };
 
   const handleImageUpload = (e) => {
@@ -180,6 +319,135 @@ const HostelForm = ({ initialData = {}, onSubmit, onCancel }) => {
       });
 
     e.target.value = '';
+  };
+
+  const selectedUniversity = useMemo(() => {
+    const search = formData.universityName?.trim().toLowerCase();
+    if (!search) return null;
+    return KENYAN_UNIVERSITIES.find(
+      (university) => university.name.toLowerCase() === search
+    ) || null;
+  }, [formData.universityName]);
+
+  const buildGeocodePayload = (universityOverride) => ({
+    street: formData.address.street,
+    city: universityOverride?.city || formData.address.city,
+    county: universityOverride?.county || formData.address.county,
+    university: universityOverride?.name || formData.universityName,
+    country: 'Kenya'
+  });
+
+  const geocodeUniversityLocation = async (university, signal) => {
+    if (!university?.name) return null;
+    const payload = buildGeocodePayload(university);
+    const response = await geocodeLocation(payload, { signal });
+    return response?.data?.coordinates || null;
+  };
+
+  useEffect(() => {
+    if (!selectedUniversity) return;
+
+    setFormData(prev => ({
+      ...prev,
+      address: {
+        ...prev.address,
+        city: selectedUniversity.city || prev.address.city,
+        county: selectedUniversity.county || prev.address.county
+      }
+    }));
+  }, [selectedUniversity]);
+
+  useEffect(() => {
+    if (!selectedUniversity) return;
+    if (formData.coordinates.latitude !== '' || formData.coordinates.longitude !== '') return;
+
+    const controller = new AbortController();
+    const fetchCoordinates = async () => {
+      setGeocodingUniversity(true);
+      setGeocodeError(null);
+      try {
+        const coords = await geocodeUniversityLocation(selectedUniversity, controller.signal);
+        if (coords?.latitude && coords?.longitude) {
+          setFormData(prev => ({
+            ...prev,
+            coordinates: {
+              latitude: coords.latitude,
+              longitude: coords.longitude
+            }
+          }));
+        } else {
+          setGeocodeError('Unable to determine coordinates for the selected university.');
+        }
+      } catch (error) {
+        if (error.name !== 'AbortError') {
+          setGeocodeError(error.message || 'Unable to fetch university location.');
+        }
+      } finally {
+        setGeocodingUniversity(false);
+      }
+    };
+
+    fetchCoordinates();
+
+    return () => {
+      controller.abort();
+    };
+  }, [selectedUniversity, formData.coordinates.latitude, formData.coordinates.longitude]);
+
+  const handleUseUniversityLocation = async () => {
+    if (!selectedUniversity) {
+      setGeocodeError('Select a university to use its location.');
+      return;
+    }
+    setGeocodeError(null);
+    setGeocodingUniversity(true);
+    try {
+      const coords = await geocodeUniversityLocation(selectedUniversity);
+      if (coords?.latitude && coords?.longitude) {
+        setFormData(prev => ({
+          ...prev,
+          coordinates: {
+            latitude: coords.latitude,
+            longitude: coords.longitude
+          }
+        }));
+      } else {
+        setGeocodeError('Unable to determine coordinates for the selected university.');
+      }
+    } catch (error) {
+      setGeocodeError(error.message || 'Unable to fetch university location.');
+    } finally {
+      setGeocodingUniversity(false);
+    }
+  };
+
+  const handleDetectLocation = () => {
+    if (!navigator.geolocation) {
+      setLocationError('Geolocation is not supported by this browser.');
+      return;
+    }
+
+    setLocating(true);
+    setLocationError(null);
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        setFormData(prev => ({
+          ...prev,
+          coordinates: {
+            latitude: latitude.toFixed(6),
+            longitude: longitude.toFixed(6)
+          }
+        }));
+        setLocating(false);
+      },
+      (error) => {
+        setLocating(false);
+        setLocationError(error.message || 'Unable to detect your location.');
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
   };
 
   const handleRemoveImage = (imageId) => {
@@ -276,6 +544,12 @@ const HostelForm = ({ initialData = {}, onSubmit, onCancel }) => {
       name: formData.name.trim(),
       description: formData.description.trim(),
       hostelType: formData.hostelType,
+      university: formData.universityName?.trim()
+        ? {
+            name: formData.universityName.trim(),
+            distanceKm: parseFloat(distanceValue) || 0
+          }
+        : undefined,
       address: {
         street: formData.address.street.trim(),
         city: formData.address.city.trim(),
@@ -287,6 +561,9 @@ const HostelForm = ({ initialData = {}, onSubmit, onCancel }) => {
         name,
         category: amenityCategoryMap[name] || 'essential'
       })),
+      houseRules: formData.rules?.length
+        ? { additionalRules: formData.rules.map((rule) => rule.trim()).filter(Boolean) }
+        : undefined,
       images: (formData.images || []).map((image, index) => ({
         url: image.url,
         publicId: image.publicId,
@@ -358,6 +635,27 @@ const HostelForm = ({ initialData = {}, onSubmit, onCancel }) => {
             <Form.Control.Feedback type="invalid">
               {errors.hostelType}
             </Form.Control.Feedback>
+          </Form.Group>
+
+          {/* University */}
+          <Form.Group className="mb-3" controlId="universityName">
+            <Form.Label className="fw-medium">University / College</Form.Label>
+            <Form.Control
+              type="text"
+              name="universityName"
+              value={formData.universityName}
+              onChange={handleChange}
+              placeholder="Start typing to search universities in Kenya"
+              list="kenyan-universities"
+            />
+            <datalist id="kenyan-universities">
+              {KENYAN_UNIVERSITIES.map((university) => (
+                <option key={university.name} value={university.name} />
+              ))}
+            </datalist>
+            <Form.Text className="text-muted">
+              Selecting a university will auto-fill city/county and attempt to pin the map.
+            </Form.Text>
           </Form.Group>
 
           {/* Address */}
@@ -487,6 +785,47 @@ const HostelForm = ({ initialData = {}, onSubmit, onCancel }) => {
             </Form.Control.Feedback>
           </Form.Group>
 
+          {/* Hostel Rules (Optional) */}
+          <Form.Group className="mb-3" controlId="rules">
+            <Form.Label className="fw-medium">Hostel Rules (Optional)</Form.Label>
+            <div className="d-flex flex-wrap gap-2">
+              <Form.Control
+                type="text"
+                value={ruleInput}
+                onChange={(e) => setRuleInput(e.target.value)}
+                placeholder="e.g., No loud music after 10pm"
+              />
+              <Button
+                type="button"
+                variant="outline-primary"
+                onClick={handleRuleAdd}
+              >
+                <i className="bi bi-plus-lg me-2"></i>
+                Add Rule
+              </Button>
+            </div>
+            {formData.rules?.length > 0 && (
+              <ul className="rules-list list-unstyled mt-3">
+                {formData.rules.map((rule, index) => (
+                  <li key={`${rule}-${index}`} className="d-flex align-items-start mb-2">
+                    <i className="bi bi-check-circle-fill text-success me-2 mt-1"></i>
+                    <span className="flex-grow-1">{rule}</span>
+                    <Button
+                      variant="outline-danger"
+                      size="sm"
+                      onClick={() => handleRuleRemove(index)}
+                    >
+                      <i className="bi bi-x-lg"></i>
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <Form.Text className="text-muted">
+              Rules are optional and can be updated later.
+            </Form.Text>
+          </Form.Group>
+
           {/* Amenities */}
           <Form.Group className="mb-3" controlId="amenities">
             <Form.Label className="fw-medium">Amenities</Form.Label>
@@ -523,6 +862,26 @@ const HostelForm = ({ initialData = {}, onSubmit, onCancel }) => {
           {/* Location Coordinates */}
           <Form.Group className="mb-4" controlId="coordinates">
             <Form.Label className="fw-medium">Hostel Location (Map Support)</Form.Label>
+            <div className="d-flex flex-wrap gap-2 mb-3">
+              <Button
+                variant="outline-primary"
+                size="sm"
+                type="button"
+                onClick={handleUseUniversityLocation}
+                disabled={geocodingUniversity}
+              >
+                {geocodingUniversity ? 'Locating university...' : 'Use University Location'}
+              </Button>
+              <Button
+                variant="outline-success"
+                size="sm"
+                type="button"
+                onClick={handleDetectLocation}
+                disabled={locating}
+              >
+                {locating ? 'Detecting location...' : 'Use My Location'}
+              </Button>
+            </div>
             <Row className="g-3">
               <Col md={6}>
                 <Form.Control
@@ -545,6 +904,12 @@ const HostelForm = ({ initialData = {}, onSubmit, onCancel }) => {
                 />
               </Col>
             </Row>
+            {geocodeError && (
+              <small className="text-danger d-block mt-2">{geocodeError}</small>
+            )}
+            {locationError && (
+              <small className="text-danger d-block mt-2">{locationError}</small>
+            )}
             {errors.coordinates && (
               <small className="text-danger d-block mt-2">{errors.coordinates}</small>
             )}

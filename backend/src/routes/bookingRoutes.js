@@ -72,6 +72,13 @@ router.patch('/admin/bookings/:bookingId/force-cancel',
   bookingController.forceCancelBooking
 );
 
+// Cancel booking (admin alias)
+router.patch('/admin/bookings/:bookingId/cancel',
+  authMiddleware,
+  roleMiddleware('admin'),
+  bookingController.forceCancelBooking
+);
+
 // ========== PUBLIC/SHARED ROUTES ==========
 
 // Get single booking (student, landlord, or admin)

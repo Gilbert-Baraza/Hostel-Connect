@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { Row, Col, Card, Button, Form, Alert, Badge } from 'react-bootstrap';
+import React, { useState, useEffect } from 'react';
+import { Row, Col, Card, Button, Form, Alert, Badge, Spinner } from 'react-bootstrap';
+import { useAuth } from '../auth/AuthContext';
 
 /**
  * StudentProfile Component
@@ -10,23 +11,54 @@ import { Row, Col, Card, Button, Form, Alert, Badge } from 'react-bootstrap';
  * @param {Function} props.onUpdate - Callback to update profile
  */
 const StudentProfile = ({ user, onUpdate }) => {
+  const { updateProfile, loading: authLoading } = useAuth();
   const [profile, setProfile] = useState({
-    name: user?.name || 'Test Student',
-    email: user?.email || 'student@test.com',
-    phone: '+254 712 345 678',
-    university: 'Egerton University',
+    name: user?.name || '',
+    email: user?.email || '',
+    phone: user?.phone || '',
+    university: user?.university || '',
     preferences: {
-      budgetRange: '3000-5000',
-      roomType: 'single',
-      distancePreference: 'near'
+      budgetRange: user?.preferences?.budgetRange || '3000-5000',
+      roomType: user?.preferences?.roomType || 'single',
+      distancePreference: user?.preferences?.distancePreference || 'near'
     }
   });
 
   const [isEditing, setIsEditing] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [errors, setErrors] = useState({});
+
+  // Sync profile state when user data changes
+  useEffect(() => {
+    if (user) {
+      setProfile({
+        name: user.name || '',
+        email: user.email || '',
+        phone: user.phone || '',
+        university: user.university || '',
+        preferences: {
+          budgetRange: user.preferences?.budgetRange || '3000-5000',
+          roomType: user.preferences?.roomType || 'single',
+          distancePreference: user.preferences?.distancePreference || 'near'
+        }
+      });
+    }
+  }, [user]);
+
+  // Show loading state while auth is initializing
+  if (authLoading) {
+    return (
+      <div className="d-flex justify-content-center align-items-center p-5">
+        <Spinner animation="border" variant="primary" />
+        <span className="ms-3">Loading profile...</span>
+      </div>
+    );
+  }
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+    setErrors(prev => ({ ...prev, [name]: '' }));
+    
     if (name.includes('.')) {
       const [parent, child] = name.split('.');
       setProfile(prev => ({
@@ -44,16 +76,49 @@ const StudentProfile = ({ user, onUpdate }) => {
     }
   };
 
+  const validateForm = () => {
+    const newErrors = {};
+    if (!profile.name.trim()) {
+      newErrors.name = 'Full name is required';
+    }
+    if (!profile.phone.trim()) {
+      newErrors.phone = 'Phone number is required';
+    }
+    if (!profile.university.trim()) {
+      newErrors.university = 'University is required';
+    }
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   const handleSave = () => {
+    if (!validateForm()) return;
+    
     setSaveSuccess(true);
     setIsEditing(false);
     if (onUpdate) onUpdate(profile);
+    if (updateProfile) updateProfile(profile);
     setTimeout(() => setSaveSuccess(false), 3000);
   };
 
   const handleCancel = () => {
     setIsEditing(false);
     setSaveSuccess(false);
+    setErrors({});
+    // Reset to original user data
+    if (user) {
+      setProfile({
+        name: user.name || '',
+        email: user.email || '',
+        phone: user.phone || '',
+        university: user.university || '',
+        preferences: {
+          budgetRange: user.preferences?.budgetRange || '3000-5000',
+          roomType: user.preferences?.roomType || 'single',
+          distancePreference: user.preferences?.distancePreference || 'near'
+        }
+      });
+    }
   };
 
   const roomTypes = [
@@ -77,6 +142,22 @@ const StudentProfile = ({ user, onUpdate }) => {
     { value: 'far', label: 'More than 3km (Transport needed)' }
   ];
 
+  // Generate avatar initials
+  const getInitials = (name) => {
+    if (!name) return 'S';
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  };
+
+  // Get role badge color
+  const getRoleBadgeVariant = (role) => {
+    switch (role) {
+      case 'student': return 'primary';
+      case 'landlord': return 'success';
+      case 'admin': return 'danger';
+      default: return 'secondary';
+    }
+  };
+
   return (
     <>
       <Row className="mb-4">
@@ -95,15 +176,71 @@ const StudentProfile = ({ user, onUpdate }) => {
       {saveSuccess && (
         <Row className="mb-4">
           <Col>
-            <Alert variant="success" className="border-0 shadow-sm">
-              <i className="bi bi-check-circle me-2"></i>
-              Profile updated successfully!
+            <Alert variant="success" className="border-0 shadow-sm d-flex align-items-center">
+              <i className="bi bi-check-circle me-2 fs-5"></i>
+              <span>Profile updated successfully!</span>
             </Alert>
           </Col>
         </Row>
       )}
 
       <Row className="g-4">
+        {/* Profile Header Card */}
+        <Col xs={12}>
+          <Card className="border-0 shadow-sm">
+            <Card.Body className="d-flex flex-wrap align-items-center gap-4">
+              <div 
+                className="profile-avatar d-flex align-items-center justify-content-center rounded-circle text-white fw-bold"
+                style={{ width: '80px', height: '80px', fontSize: '1.75rem', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}
+                aria-hidden="true"
+              >
+                {getInitials(profile.name)}
+              </div>
+              <div className="flex-grow-1">
+                <h4 className="fw-bold mb-1">{profile.name || 'Student User'}</h4>
+                <p className="text-muted mb-2">{profile.email || 'No email set'}</p>
+                <div className="d-flex flex-wrap gap-2">
+                  <Badge bg={getRoleBadgeVariant(user?.role)}>
+                    <i className="bi bi-person-badge me-1"></i>
+                    {user?.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : 'Student'}
+                  </Badge>
+                  {user?.verified?.email && (
+                    <Badge bg="success">
+                      <i className="bi bi-envelope-check me-1"></i>Email Verified
+                    </Badge>
+                  )}
+                  {user?.verified?.phone && (
+                    <Badge bg="success">
+                      <i className="bi bi-phone-check me-1"></i>Phone Verified
+                    </Badge>
+                  )}
+                </div>
+              </div>
+              <div>
+                {!isEditing ? (
+                  <Button 
+                    variant="outline-primary" 
+                    onClick={() => setIsEditing(true)}
+                    aria-label="Edit profile"
+                  >
+                    <i className="bi bi-pencil me-1"></i>
+                    Edit Profile
+                  </Button>
+                ) : (
+                  <Button 
+                    variant="secondary" 
+                    onClick={handleCancel}
+                    aria-label="Cancel editing"
+                  >
+                    <i className="bi bi-x me-1"></i>
+                    Cancel
+                  </Button>
+                )}
+              </div>
+            </Card.Body>
+          </Card>
+        </Col>
+
         {/* Account Information */}
         <Col xs={12} lg={6}>
           <Card className="border-0 shadow-sm h-100">
@@ -113,20 +250,10 @@ const StudentProfile = ({ user, onUpdate }) => {
                   <i className="bi bi-person-badge me-2"></i>
                   Account Information
                 </h5>
-                {!isEditing && (
-                  <Button 
-                    variant="outline-primary" 
-                    size="sm"
-                    onClick={() => setIsEditing(true)}
-                  >
-                    <i className="bi bi-pencil me-1"></i>
-                    Edit
-                  </Button>
-                )}
               </div>
             </Card.Header>
             <Card.Body>
-              <Form>
+              <Form noValidate>
                 <Form.Group className="mb-3">
                   <Form.Label className="fw-medium">Full Name</Form.Label>
                   <Form.Control
@@ -136,7 +263,12 @@ const StudentProfile = ({ user, onUpdate }) => {
                     onChange={handleChange}
                     disabled={!isEditing}
                     placeholder="Enter your full name"
+                    isInvalid={!!errors.name}
+                    aria-label="Full name"
                   />
+                  <Form.Control.Feedback type="invalid">
+                    {errors.name}
+                  </Form.Control.Feedback>
                 </Form.Group>
 
                 <Form.Group className="mb-3">
@@ -147,6 +279,7 @@ const StudentProfile = ({ user, onUpdate }) => {
                     value={profile.email}
                     disabled
                     className="bg-light"
+                    aria-label="Email address"
                   />
                   <Form.Text className="text-muted">
                     Email cannot be changed
@@ -162,7 +295,12 @@ const StudentProfile = ({ user, onUpdate }) => {
                     onChange={handleChange}
                     disabled={!isEditing}
                     placeholder="Enter your phone number"
+                    isInvalid={!!errors.phone}
+                    aria-label="Phone number"
                   />
+                  <Form.Control.Feedback type="invalid">
+                    {errors.phone}
+                  </Form.Control.Feedback>
                 </Form.Group>
 
                 <Form.Group className="mb-0">
@@ -174,7 +312,12 @@ const StudentProfile = ({ user, onUpdate }) => {
                     onChange={handleChange}
                     disabled={!isEditing}
                     placeholder="Enter your university"
+                    isInvalid={!!errors.university}
+                    aria-label="University"
                   />
+                  <Form.Control.Feedback type="invalid">
+                    {errors.university}
+                  </Form.Control.Feedback>
                 </Form.Group>
               </Form>
             </Card.Body>
@@ -199,6 +342,7 @@ const StudentProfile = ({ user, onUpdate }) => {
                     value={profile.preferences.budgetRange}
                     onChange={handleChange}
                     disabled={!isEditing}
+                    aria-label="Budget range"
                   >
                     {budgetRanges.map((range) => (
                       <option key={range.value} value={range.value}>
@@ -215,6 +359,7 @@ const StudentProfile = ({ user, onUpdate }) => {
                     value={profile.preferences.roomType}
                     onChange={handleChange}
                     disabled={!isEditing}
+                    aria-label="Preferred room type"
                   >
                     {roomTypes.map((type) => (
                       <option key={type.value} value={type.value}>
@@ -231,6 +376,7 @@ const StudentProfile = ({ user, onUpdate }) => {
                     value={profile.preferences.distancePreference}
                     onChange={handleChange}
                     disabled={!isEditing}
+                    aria-label="Distance preference"
                   >
                     {distanceOptions.map((option) => (
                       <option key={option.value} value={option.value}>
@@ -260,7 +406,9 @@ const StudentProfile = ({ user, onUpdate }) => {
                     <i className="bi bi-envelope-check fs-4 text-success me-3"></i>
                     <div>
                       <small className="text-muted d-block">Email</small>
-                      <Badge bg="success">Verified</Badge>
+                      <Badge bg={user?.verified?.email ? 'success' : 'warning'}>
+                        {user?.verified?.email ? 'Verified' : 'Pending'}
+                      </Badge>
                     </div>
                   </div>
                 </Col>
@@ -269,7 +417,9 @@ const StudentProfile = ({ user, onUpdate }) => {
                     <i className="bi bi-phone-check fs-4 text-success me-3"></i>
                     <div>
                       <small className="text-muted d-block">Phone</small>
-                      <Badge bg="success">Verified</Badge>
+                      <Badge bg={user?.verified?.phone ? 'success' : 'warning'}>
+                        {user?.verified?.phone ? 'Verified' : 'Pending'}
+                      </Badge>
                     </div>
                   </div>
                 </Col>
@@ -278,7 +428,9 @@ const StudentProfile = ({ user, onUpdate }) => {
                     <i className="bi bi-person-check fs-4 text-success me-3"></i>
                     <div>
                       <small className="text-muted d-block">Identity</small>
-                      <Badge bg="success">Verified</Badge>
+                      <Badge bg={user?.verified?.identity ? 'success' : 'secondary'}>
+                        {user?.verified?.identity ? 'Verified' : 'Not Uploaded'}
+                      </Badge>
                     </div>
                   </div>
                 </Col>
@@ -287,7 +439,9 @@ const StudentProfile = ({ user, onUpdate }) => {
                     <i className="bi bi-person-vcard fs-4 text-primary me-3"></i>
                     <div>
                       <small className="text-muted d-block">Role</small>
-                      <Badge bg="primary">Student</Badge>
+                      <Badge bg="primary">
+                        {user?.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : 'Student'}
+                      </Badge>
                     </div>
                   </div>
                 </Col>
@@ -315,6 +469,7 @@ const StudentProfile = ({ user, onUpdate }) => {
                         type="password"
                         placeholder="Enter current password"
                         disabled={!isEditing}
+                        aria-label="Current password"
                       />
                     </Form.Group>
                   </Col>
@@ -325,6 +480,7 @@ const StudentProfile = ({ user, onUpdate }) => {
                         type="password"
                         placeholder="Enter new password"
                         disabled={!isEditing}
+                        aria-label="New password"
                       />
                     </Form.Group>
                   </Col>
@@ -335,6 +491,7 @@ const StudentProfile = ({ user, onUpdate }) => {
                         type="password"
                         placeholder="Confirm new password"
                         disabled={!isEditing}
+                        aria-label="Confirm password"
                       />
                     </Form.Group>
                   </Col>
@@ -365,6 +522,10 @@ const StudentProfile = ({ user, onUpdate }) => {
         .form-control:disabled, .form-select:disabled {
           background: var(--gray-100);
           opacity: 0.7;
+        }
+        
+        .profile-avatar {
+          flex-shrink: 0;
         }
       `}</style>
     </>

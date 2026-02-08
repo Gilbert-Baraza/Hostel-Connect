@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Container, Row, Col, Button, Breadcrumb, Card, Badge, Alert } from 'react-bootstrap';
+import { Container, Row, Col, Button, Breadcrumb, Card, Badge, Alert, Spinner, Toast } from 'react-bootstrap';
 import { Link, useLocation } from 'react-router-dom';
 import DashboardSidebar from '../components/DashboardSidebar';
 import OverviewCards from '../components/OverviewCards';
@@ -9,6 +9,7 @@ import ProfileSection from '../components/ProfileSection';
 import { useAuth } from '../auth/AuthContext';
 import { getHostels, createHostel, updateHostel, deleteHostel } from '../api/hostels';
 import { getRoomsByHostel, createRoom, updateRoom, deleteRoom, toggleRoomAvailability } from '../api/rooms';
+import { getHostelBookings, decideBooking } from '../api/bookings';
 
 /**
  * LandlordDashboard Main Page
@@ -37,6 +38,10 @@ const LandlordDashboard = () => {
   const [hostels, setHostels] = useState([]);
   const [loadingHostels, setLoadingHostels] = useState(true);
   const [hostelError, setHostelError] = useState(null);
+  const [requests, setRequests] = useState([]);
+  const [loadingRequests, setLoadingRequests] = useState(false);
+  const [requestsError, setRequestsError] = useState(null);
+  const [toast, setToast] = useState({ show: false, message: '', variant: 'success' });
   const roomsLoadedRef = useRef(new Set());
 
   useEffect(() => {
@@ -121,11 +126,78 @@ const LandlordDashboard = () => {
     verifiedHostels: hostels.filter(h => h.verificationStatus === 'approved').length
   }), [hostels]);
 
-  // Dummy requests data
-  const requests = [
-    { id: 'req1', studentName: 'John Doe', hostel: 'Sunrise Student Hostel', type: 'viewing', status: 'pending', date: '2024-02-15' },
-    { id: 'req2', studentName: 'Jane Smith', hostel: 'Green Valley Hostel', type: 'booking', status: 'pending', date: '2024-02-16' }
-  ];
+  // Fetch bookings for all hostels
+  useEffect(() => {
+    if (currentSection !== 'requests') return;
+    if (!hostels.length) return;
+
+    let cancelled = false;
+    setLoadingRequests(true);
+    setRequestsError(null);
+
+    const fetchAllBookings = async () => {
+      try {
+        const allBookings = [];
+        for (const hostel of hostels) {
+          const hostelId = hostel._id || hostel.id;
+          if (!hostelId) continue;
+          try {
+            const response = await getHostelBookings(hostelId);
+            const bookings = response?.data?.bookings || [];
+            allBookings.push(...bookings.map(booking => ({
+              ...booking,
+              hostelName: hostel.name
+            })));
+          } catch (err) {
+            console.error(`Failed to fetch bookings for hostel ${hostelId}:`, err);
+          }
+        }
+
+        if (cancelled) return;
+        setRequests(allBookings);
+      } catch (error) {
+        if (!cancelled) {
+          setRequestsError(error.message || 'Failed to load requests');
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingRequests(false);
+        }
+      }
+    };
+
+    fetchAllBookings();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentSection, hostels]);
+
+  // Handle booking decision (approve/reject)
+  const handleDecision = async (bookingId, action, reason = '') => {
+    try {
+      await decideBooking(bookingId, { action, reason });
+      // Update the requests list
+      setRequests(prev => prev.map(req => 
+        req._id === bookingId ? { ...req, status: action === 'approve' ? 'approved' : 'rejected' } : req
+      ));
+      // Show success toast
+      setToast({
+        show: true,
+        message: `Booking ${action === 'approve' ? 'approved' : 'rejected'} successfully`,
+        variant: 'success'
+      });
+    } catch (error) {
+      console.error('Failed to process decision:', error);
+      // Show error toast
+      setToast({
+        show: true,
+        message: error.message || 'Failed to process decision',
+        variant: 'danger'
+      });
+      throw error;
+    }
+  };
 
   // Hostel management handlers
   const handleAddHostel = async (payload) => {
@@ -377,65 +449,111 @@ const LandlordDashboard = () => {
             <Row className="mb-4">
               <Col>
                 <h4 className="fw-bold mb-1">Requests</h4>
-                <p className="text-muted mb-0">View and manage student requests</p>
+                <p className="text-muted mb-0">View and manage student booking requests</p>
               </Col>
             </Row>
+            {requestsError && (
+              <Alert variant="danger" className="mb-3">
+                <i className="bi bi-exclamation-triangle me-2"></i>
+                {requestsError}
+              </Alert>
+            )}
             <Card className="border-0 shadow-sm">
               <Card.Header className="bg-white">
                 <h5 className="mb-0 fw-bold">
                   <i className="bi bi-inbox me-2"></i>
-                  Booking & Viewing Requests
+                  Booking Requests
                 </h5>
               </Card.Header>
               <Card.Body className="p-0">
-                <div className="table-responsive">
-                  <table className="table mb-0">
-                    <thead className="table-light">
-                      <tr>
-                        <th>Student</th>
-                        <th>Hostel</th>
-                        <th>Type</th>
-                        <th>Date</th>
-                        <th>Status</th>
-                        <th>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {requests.length === 0 ? (
+                {loadingRequests ? (
+                  <div className="text-center py-5">
+                    <Spinner animation="border" variant="primary" />
+                    <p className="text-muted mt-3 mb-0">Loading requests...</p>
+                  </div>
+                ) : (
+                  <div className="table-responsive">
+                    <table className="table mb-0">
+                      <thead className="table-light">
                         <tr>
-                          <td colSpan="6" className="text-center py-4">
-                            <i className="bi bi-inbox fs-1 text-muted"></i>
-                            <p className="mt-2 text-muted">No requests yet</p>
-                          </td>
+                          <th>Student</th>
+                          <th>Hostel</th>
+                          <th>Room</th>
+                          <th>Date</th>
+                          <th>Status</th>
+                          <th>Actions</th>
                         </tr>
-                      ) : (
-                        requests.map(req => (
-                          <tr key={req.id}>
-                            <td>{req.studentName}</td>
-                            <td>{req.hostel}</td>
-                            <td>
-                              <Badge bg={req.type === 'viewing' ? 'info' : 'primary'}>
-                                {req.type}
-                              </Badge>
-                            </td>
-                            <td>{req.date}</td>
-                            <td>
-                              <Badge bg="warning">{req.status}</Badge>
-                            </td>
-                            <td>
-                              <Button variant="success" size="sm" className="me-2">
-                                <i className="bi bi-check"></i>
-                              </Button>
-                              <Button variant="danger" size="sm">
-                                <i className="bi bi-x"></i>
-                              </Button>
+                      </thead>
+                      <tbody>
+                        {requests.length === 0 ? (
+                          <tr>
+                            <td colSpan="6" className="text-center py-4">
+                              <i className="bi bi-inbox fs-1 text-muted"></i>
+                              <p className="mt-2 text-muted">No booking requests yet</p>
                             </td>
                           </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+                        ) : (
+                          requests.map(req => {
+                            const student = req.studentId || {};
+                            const studentName = student.name || 'Unknown Student';
+                            const hostelName = req.hostelName || req.hostelId?.name || 'Unknown Hostel';
+                            const room = req.roomId || {};
+                            const roomNumber = room.roomNumber || 'N/A';
+                            const startDate = req.bookingPeriod?.startDate 
+                              ? new Date(req.bookingPeriod.startDate).toLocaleDateString() 
+                              : 'N/A';
+                            const status = req.status || 'pending';
+                            
+                            return (
+                              <tr key={req._id}>
+                                <td>{studentName}</td>
+                                <td>{hostelName}</td>
+                                <td>{roomNumber}</td>
+                                <td>{startDate}</td>
+                                <td>
+                                  <Badge 
+                                    bg={
+                                      status === 'approved' ? 'success' : 
+                                      status === 'rejected' ? 'danger' : 
+                                      status === 'cancelled' ? 'secondary' : 
+                                      'warning'
+                                    }
+                                  >
+                                    {status}
+                                  </Badge>
+                                </td>
+                                <td>
+                                  {status === 'pending' && (
+                                    <>
+                                      <Button 
+                                        variant="success" 
+                                        size="sm" 
+                                        className="me-2"
+                                        onClick={() => handleDecision(req._id, 'approve')}
+                                      >
+                                        <i className="bi bi-check"></i>
+                                      </Button>
+                                      <Button 
+                                        variant="danger" 
+                                        size="sm"
+                                        onClick={() => handleDecision(req._id, 'reject')}
+                                      >
+                                        <i className="bi bi-x"></i>
+                                      </Button>
+                                    </>
+                                  )}
+                                  {status !== 'pending' && (
+                                    <span className="text-muted small">No actions available</span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </Card.Body>
             </Card>
           </>
@@ -481,6 +599,21 @@ const LandlordDashboard = () => {
           {renderSection()}
         </Container>
       </main>
+
+      {/* Toast notification */}
+      <div style={{ position: 'fixed', bottom: '20px', right: '20px', zIndex: 9999 }}>
+        <Toast
+          bg={toast.variant}
+          show={toast.show}
+          onClose={() => setToast(prev => ({ ...prev, show: false }))}
+          autohide
+          delay={3000}
+        >
+          <Toast.Body className="text-white">
+            {toast.message}
+          </Toast.Body>
+        </Toast>
+      </div>
     </div>
   );
 };

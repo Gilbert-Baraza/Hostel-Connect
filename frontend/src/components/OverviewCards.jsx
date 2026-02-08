@@ -78,7 +78,7 @@ const OverviewCards = ({ stats }) => {
 
         .overview-card:hover {
           transform: translateY(-2px);
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
+          box-shadow: 0 4px 12px rgba(102, 126, 234, 0.25) !important;
         }
 
         .icon-wrapper {
@@ -91,11 +91,45 @@ const OverviewCards = ({ stats }) => {
           font-size: 1.25rem;
         }
 
-        .bg-primary-light { background: rgba(13, 110, 253, 0.1); }
-        .bg-success-light { background: rgba(25, 135, 84, 0.1); }
-        .bg-info-light { background: rgba(13, 202, 240, 0.1); }
-        .bg-warning-light { background: rgba(255, 193, 7, 0.1); }
-        .bg-secondary-light { background: rgba(108, 117, 125, 0.1); }
+        .bg-primary-light { 
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: white !important;
+        }
+        .bg-primary-light.text-primary {
+          color: white !important;
+        }
+        
+        .bg-success-light { 
+          background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);
+          color: white !important;
+        }
+        .bg-success-light.text-success {
+          color: white !important;
+        }
+        
+        .bg-info-light { 
+          background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+          color: white !important;
+        }
+        .bg-info-light.text-info {
+          color: white !important;
+        }
+        
+        .bg-warning-light { 
+          background: linear-gradient(135deg, #f6d365 0%, #fda085 100%);
+          color: white !important;
+        }
+        .bg-warning-light.text-warning {
+          color: white !important;
+        }
+        
+        .bg-secondary-light { 
+          background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+          color: #667eea !important;
+        }
+        .bg-secondary-light.text-secondary {
+          color: #667eea !important;
+        }
       `}</style>
     </Row>
   );

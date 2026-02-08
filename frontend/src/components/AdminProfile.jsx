@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Row, Col, Card, Button, Form, Table } from 'react-bootstrap';
+import { Row, Col, Card, Button, Form, Table, Spinner, Badge } from 'react-bootstrap';
 import { useAuth } from '../auth/AuthContext';
 
 /**
@@ -12,7 +12,7 @@ import { useAuth } from '../auth/AuthContext';
  * @param {Function} props.onPasswordChange - Placeholder for password change
  */
 const AdminProfile = ({ onPasswordChange }) => {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [showPasswordForm, setShowPasswordForm] = useState(false);
   const [passwords, setPasswords] = useState({
     current: '',
@@ -20,6 +20,16 @@ const AdminProfile = ({ onPasswordChange }) => {
     confirm: ''
   });
   const [passwordError, setPasswordError] = useState('');
+
+  // Show loading state while auth is initializing
+  if (authLoading) {
+    return (
+      <div className="d-flex justify-content-center align-items-center p-5">
+        <Spinner animation="border" variant="primary" />
+        <span className="ms-3">Loading admin profile...</span>
+      </div>
+    );
+  }
 
   /**
    * Handle password change
@@ -56,6 +66,12 @@ const AdminProfile = ({ onPasswordChange }) => {
     });
   };
 
+  // Generate avatar initials
+  const getInitials = (name) => {
+    if (!name) return 'A';
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  };
+
   return (
     <div className="admin-profile">
       {/* Page Header */}
@@ -69,11 +85,42 @@ const AdminProfile = ({ onPasswordChange }) => {
         </p>
       </div>
 
+      {/* Profile Header Card */}
+      <Row className="mb-4">
+        <Col xs={12}>
+          <Card className="border-0 shadow-sm">
+            <Card.Body className="d-flex flex-wrap align-items-center gap-4">
+              <div 
+                className="profile-avatar d-flex align-items-center justify-content-center rounded-circle text-white fw-bold"
+                style={{ width: '80px', height: '80px', fontSize: '1.75rem', background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' }}
+                aria-hidden="true"
+              >
+                {getInitials(user?.name)}
+              </div>
+              <div className="flex-grow-1">
+                <h4 className="fw-bold mb-1">{user?.name || 'Admin User'}</h4>
+                <p className="text-muted mb-2">{user?.email || 'No email set'}</p>
+                <div className="d-flex flex-wrap gap-2">
+                  <Badge bg="danger">
+                    <i className="bi bi-shield-check me-1"></i>
+                    Administrator
+                  </Badge>
+                  <Badge bg="secondary">
+                    <i className="bi bi-key me-1"></i>
+                    ID: {user?.id || 'N/A'}
+                  </Badge>
+                </div>
+              </div>
+            </Card.Body>
+          </Card>
+        </Col>
+      </Row>
+
       <Row>
         {/* Account Information */}
         <Col xs={12} lg={6}>
-          <Card className="mb-4">
-            <Card.Header>
+          <Card className="mb-4 border-0 shadow-sm">
+            <Card.Header className="bg-white">
               <h5 className="mb-0">
                 <i className="bi bi-person me-2"></i>
                 Account Information
@@ -84,15 +131,22 @@ const AdminProfile = ({ onPasswordChange }) => {
                 <Col xs={12} md={6}>
                   <Form.Group>
                     <Form.Label>Admin ID</Form.Label>
-                    <Form.Control value={user?.id || 'N/A'} disabled />
+                    <Form.Control 
+                      value={user?.id || 'N/A'} 
+                      disabled 
+                      className="bg-light"
+                      aria-label="Admin ID"
+                    />
                   </Form.Group>
                 </Col>
                 <Col xs={12} md={6}>
                   <Form.Group>
                     <Form.Label>Role</Form.Label>
                     <Form.Control 
-                      value={user?.role === 'admin' ? 'Admin' : 'Admin'} 
+                      value="Administrator" 
                       disabled 
+                      className="bg-light"
+                      aria-label="Role"
                     />
                   </Form.Group>
                 </Col>
@@ -100,29 +154,44 @@ const AdminProfile = ({ onPasswordChange }) => {
               <Row className="mb-3">
                 <Col xs={12} md={6}>
                   <Form.Group>
-                  <Form.Label>Name</Form.Label>
-                  <Form.Control value={user?.name || 'Admin'} disabled />
-                </Form.Group>
-              </Col>
-              <Col xs={12} md={6}>
-                <Form.Group>
-                  <Form.Label>Email</Form.Label>
-                  <Form.Control value={user?.email || 'N/A'} disabled />
-                </Form.Group>
-              </Col>
-            </Row>
-            <Form.Group className="mb-0">
-              <Form.Label>Member Since</Form.Label>
-              <Form.Control value={formatDate(user?.createdAt)} disabled />
-            </Form.Group>
+                    <Form.Label>Name</Form.Label>
+                    <Form.Control 
+                      value={user?.name || 'Admin'} 
+                      disabled 
+                      className="bg-light"
+                      aria-label="Name"
+                    />
+                  </Form.Group>
+                </Col>
+                <Col xs={12} md={6}>
+                  <Form.Group>
+                    <Form.Label>Email</Form.Label>
+                    <Form.Control 
+                      value={user?.email || 'N/A'} 
+                      disabled 
+                      className="bg-light"
+                      aria-label="Email"
+                    />
+                  </Form.Group>
+                </Col>
+              </Row>
+              <Form.Group className="mb-0">
+                <Form.Label>Member Since</Form.Label>
+                <Form.Control 
+                  value={formatDate(user?.createdAt)} 
+                  disabled 
+                  className="bg-light"
+                  aria-label="Member since"
+                />
+              </Form.Group>
             </Card.Body>
           </Card>
         </Col>
 
         {/* Security Settings */}
         <Col xs={12} lg={6}>
-          <Card className="mb-4">
-            <Card.Header>
+          <Card className="mb-4 border-0 shadow-sm">
+            <Card.Header className="bg-white">
               <h5 className="mb-0">
                 <i className="bi bi-shield-lock me-2"></i>
                 Security Settings
@@ -133,12 +202,15 @@ const AdminProfile = ({ onPasswordChange }) => {
                 <div className="d-flex justify-content-between align-items-center mb-2">
                   <div>
                     <strong>Password</strong>
-                    <p className="text-muted mb-0 small">Last changed: Never</p>
+                    <p className="text-muted mb-0 small">
+                      {user?.passwordChangedAt ? `Last changed: ${formatDate(user.passwordChangedAt)}` : 'Last changed: Never'}
+                    </p>
                   </div>
                   <Button
                     variant={showPasswordForm ? 'outline-secondary' : 'outline-primary'}
                     size="sm"
                     onClick={() => setShowPasswordForm(!showPasswordForm)}
+                    aria-label={showPasswordForm ? 'Cancel password change' : 'Change password'}
                   >
                     <i className="bi bi-key me-1"></i>
                     {showPasswordForm ? 'Cancel' : 'Change Password'}
@@ -154,6 +226,7 @@ const AdminProfile = ({ onPasswordChange }) => {
                         placeholder="Enter current password"
                         value={passwords.current}
                         onChange={(e) => setPasswords({ ...passwords, current: e.target.value })}
+                        aria-label="Current password"
                       />
                     </Form.Group>
                     <Form.Group className="mb-3">
@@ -163,6 +236,7 @@ const AdminProfile = ({ onPasswordChange }) => {
                         placeholder="Enter new password"
                         value={passwords.new}
                         onChange={(e) => setPasswords({ ...passwords, new: e.target.value })}
+                        aria-label="New password"
                       />
                       <Form.Text className="text-muted">
                         Must be at least 8 characters
@@ -176,6 +250,7 @@ const AdminProfile = ({ onPasswordChange }) => {
                         value={passwords.confirm}
                         onChange={(e) => setPasswords({ ...passwords, confirm: e.target.value })}
                         isInvalid={!!passwordError}
+                        aria-label="Confirm password"
                       />
                       <Form.Control.Feedback type="invalid">
                         {passwordError}
@@ -209,8 +284,8 @@ const AdminProfile = ({ onPasswordChange }) => {
       </Row>
 
       {/* Activity Log */}
-      <Card>
-        <Card.Header>
+      <Card className="border-0 shadow-sm">
+        <Card.Header className="bg-white">
           <h5 className="mb-0">
             <i className="bi bi-clock-history me-2"></i>
             Recent Activity Log
@@ -227,11 +302,22 @@ const AdminProfile = ({ onPasswordChange }) => {
                 </tr>
               </thead>
               <tbody>
-                <tr>
-                  <td colSpan={3} className="text-center py-4 text-muted">
-                    No activity recorded yet.
-                  </td>
-                </tr>
+                {user?.activityLog && user.activityLog.length > 0 ? (
+                  user.activityLog.map((activity, index) => (
+                    <tr key={index}>
+                      <td>{activity.action}</td>
+                      <td>{activity.target || 'N/A'}</td>
+                      <td>{formatDate(activity.timestamp)}</td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={3} className="text-center py-4 text-muted">
+                      <i className="bi bi-clock-history me-2"></i>
+                      No activity recorded yet.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </Table>
           </div>
@@ -291,6 +377,15 @@ const AdminProfile = ({ onPasswordChange }) => {
           padding: 1rem;
           vertical-align: middle;
           border-bottom: 1px solid #e2e8f0;
+        }
+
+        .profile-avatar {
+          flex-shrink: 0;
+        }
+
+        .form-control:disabled {
+          background: var(--gray-100);
+          opacity: 0.7;
         }
       `}</style>
     </div>

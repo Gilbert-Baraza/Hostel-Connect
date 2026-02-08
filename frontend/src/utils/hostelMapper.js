@@ -70,6 +70,8 @@ export const normalizeHostel = (hostel = {}) => {
     ? hostel.verificationStatus === 'approved'
     : !!hostel.verified;
 
+  const coordinates = hostel.address?.coordinates || hostel.coordinates || null;
+
   return {
     id: hostel._id || hostel.id,
     name: hostel.name || 'Unnamed Hostel',
@@ -89,6 +91,7 @@ export const normalizeHostel = (hostel = {}) => {
     reviewsCount: typeof hostel.reviewsCount === 'number' ? hostel.reviewsCount : 0,
     roomsAvailable:
       typeof hostel.roomsAvailable === 'number' ? hostel.roomsAvailable : null,
-    type
+    type,
+    coordinates
   };
 };

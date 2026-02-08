@@ -1,5 +1,7 @@
 import React from 'react';
-import { Card, Button, Row, Col } from 'react-bootstrap';
+import { Card, Button, Row, Col, Alert } from 'react-bootstrap';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../auth/AuthContext';
 
 /**
  * ContactPanel Component
@@ -12,23 +14,51 @@ import { Card, Button, Row, Col } from 'react-bootstrap';
  * Note: Contact functionality will be enabled after login
  */
 const ContactPanel = ({ landlord = {}, hostelName = '' }) => {
+  const { isAuthenticated, user } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
   const { name = 'Landlord', phone = '', email = '' } = landlord;
-  
+  const hasContactDetails = Boolean(phone || email);
+
+  const requireAuth = () => {
+    if (isAuthenticated) return true;
+    navigate('/login', { state: { from: location } });
+    return false;
+  };
+
   const handleCall = () => {
+    if (!requireAuth()) return;
     if (phone) {
       window.location.href = `tel:${phone}`;
+      return;
     }
+    alert('Phone contact is not available yet.');
   };
-  
+
   const handleEmail = () => {
+    if (!requireAuth()) return;
     if (email) {
       window.location.href = `mailto:${email}?subject=Inquiry about ${encodeURIComponent(hostelName)}`;
+      return;
     }
+    alert('Email contact is not available yet.');
   };
-  
+
   const handleRequestViewing = () => {
-    // Placeholder for viewing request functionality
-    alert('Please login to request a viewing. This feature will be enabled after authentication.');
+    if (!requireAuth()) return;
+    if (email) {
+      const requesterName = user?.name || 'Student';
+      const requesterEmail = user?.email ? ` (${user.email})` : '';
+      const subject = `Viewing request for ${hostelName}`;
+      const body = `Hello ${name},%0D%0A%0D%0AI would like to request a viewing for ${hostelName}.%0D%0A%0D%0ARegards,%0D%0A${requesterName}${requesterEmail}`;
+      window.location.href = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${body}`;
+      return;
+    }
+    if (phone) {
+      window.location.href = `tel:${phone}`;
+      return;
+    }
+    alert('Contact details are not available yet.');
   };
   
   return (
@@ -79,7 +109,7 @@ const ContactPanel = ({ landlord = {}, hostelName = '' }) => {
                 variant="primary"
                 className="w-100 py-2 fw-bold"
                 onClick={handleCall}
-                disabled={!phone}
+                disabled={isAuthenticated ? !phone : false}
               >
                 <i className="bi bi-telephone-fill me-2"></i>
                 Call Now
@@ -90,7 +120,7 @@ const ContactPanel = ({ landlord = {}, hostelName = '' }) => {
                 variant="outline-primary"
                 className="w-100 py-2 fw-bold"
                 onClick={handleEmail}
-                disabled={!email}
+                disabled={isAuthenticated ? !email : false}
               >
                 <i className="bi bi-envelope me-2"></i>
                 Send Email
@@ -108,22 +138,20 @@ const ContactPanel = ({ landlord = {}, hostelName = '' }) => {
             </Col>
           </Row>
         </div>
-        
-        {/* Login Notice */}
-        <div className="login-notice mt-4 p-3 bg-light rounded-2">
-          <div className="d-flex align-items-start">
-            <i className="bi bi-info-circle-fill text-info me-2 mt-1"></i>
-            <div>
-              <small className="text-muted d-block mb-1">
-                <strong>Contact functionality</strong>
-              </small>
-              <small className="text-muted">
-                Full contact details and messaging will be available after login.
-                Create an account to connect directly with landlords.
-              </small>
-            </div>
-          </div>
-        </div>
+
+        {!isAuthenticated && (
+          <Alert variant="info" className="mt-4 mb-0">
+            <i className="bi bi-info-circle-fill me-2"></i>
+            Login to contact the landlord and request a viewing.
+          </Alert>
+        )}
+
+        {isAuthenticated && !hasContactDetails && (
+          <Alert variant="warning" className="mt-4 mb-0">
+            <i className="bi bi-shield-lock me-2"></i>
+            Contact details will appear after your booking request is approved.
+          </Alert>
+        )}
       </Card.Body>
     </Card>
   );

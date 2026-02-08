@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Row, Col, Card, Button, Badge, Table, Alert, Accordion, Spinner } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 import { getMyBookings, cancelBooking } from '../api/bookings';
@@ -14,6 +14,8 @@ const RequestsList = ({ onCancel }) => {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const isMountedRef = useRef(true);
+  const refreshIntervalMs = 15000;
 
   const normalizeStatus = (status) => {
     if (status === 'approved' || status === 'pending' || status === 'rejected') {
@@ -23,9 +25,12 @@ const RequestsList = ({ onCancel }) => {
     return 'rejected';
   };
 
-  const fetchRequests = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  const fetchRequests = useCallback(async (options = {}) => {
+    const { silent = false } = options;
+    if (!silent) {
+      setLoading(true);
+      setError(null);
+    }
     try {
       const response = await getMyBookings({ limit: 500 });
       const list = response?.data?.bookings || response?.data || [];
@@ -35,6 +40,7 @@ const RequestsList = ({ onCancel }) => {
         const status = normalizeStatus(booking.status);
         const isApproved = status === 'approved';
         const landlord = booking.hostelId?.landlordId || {};
+        const hasContact = isApproved && (landlord?.phone || landlord?.email || landlord?.name);
         return {
           id: booking._id || booking.id,
           hostelId,
@@ -45,24 +51,50 @@ const RequestsList = ({ onCancel }) => {
           notes: booking.roomId?.roomNumber
             ? `Room ${booking.roomId.roomNumber}`
             : 'Booking request',
-          landlordContact: isApproved && landlord?.name ? {
-            name: landlord.name,
-            phone: landlord.phone,
-            email: landlord.email
+          landlordContact: hasContact ? {
+            name: landlord.name || 'Landlord',
+            phone: landlord.phone || '',
+            email: landlord.email || ''
           } : null,
           rejectionReason: booking.decision?.reason || booking.cancellation?.reason || null
         };
       });
-      setRequests(normalized);
+      if (isMountedRef.current) {
+        setRequests(normalized);
+      }
     } catch (err) {
-      setError(err?.message || 'Failed to load requests');
+      if (!silent && isMountedRef.current) {
+        setError(err?.message || 'Failed to load requests');
+      }
     } finally {
-      setLoading(false);
+      if (!silent && isMountedRef.current) {
+        setLoading(false);
+      }
     }
   }, []);
 
   useEffect(() => {
     fetchRequests();
+    const intervalId = setInterval(() => {
+      fetchRequests({ silent: true });
+    }, refreshIntervalMs);
+
+    const handleFocus = () => fetchRequests({ silent: true });
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        fetchRequests({ silent: true });
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      isMountedRef.current = false;
+      clearInterval(intervalId);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, [fetchRequests]);
 
   const handleCancel = async (requestId) => {
@@ -71,6 +103,7 @@ const RequestsList = ({ onCancel }) => {
       await cancelBooking(requestId, { reason: 'Cancelled by student' });
       setRequests(prev => prev.filter(r => r.id !== requestId));
       if (onCancel) onCancel(requestId);
+      fetchRequests({ silent: true });
     } catch (err) {
       setError(err?.message || 'Failed to cancel request');
     }
@@ -148,26 +181,26 @@ const RequestsList = ({ onCancel }) => {
       {/* Summary Cards */}
       <Row className="mb-4 g-3">
         <Col xs={12} sm={4}>
-          <Card className="border-0 shadow-sm">
+          <Card className="border-0 shadow-sm h-100" style={{ background: 'linear-gradient(135deg, #f6d365 0%, #fda085 100%)' }}>
             <Card.Body className="text-center py-3">
-              <h3 className="fw-bold text-warning mb-0">{pendingRequests.length}</h3>
-              <small className="text-muted">Pending</small>
+              <h3 className="fw-bold text-white mb-0">{pendingRequests.length}</h3>
+              <small className="text-white-50">Pending</small>
             </Card.Body>
           </Card>
         </Col>
         <Col xs={12} sm={4}>
-          <Card className="border-0 shadow-sm">
+          <Card className="border-0 shadow-sm h-100" style={{ background: 'linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%)' }}>
             <Card.Body className="text-center py-3">
-              <h3 className="fw-bold text-success mb-0">{approvedRequests.length}</h3>
-              <small className="text-muted">Approved</small>
+              <h3 className="fw-bold text-white mb-0">{approvedRequests.length}</h3>
+              <small className="text-white-50">Approved</small>
             </Card.Body>
           </Card>
         </Col>
         <Col xs={12} sm={4}>
-          <Card className="border-0 shadow-sm">
+          <Card className="border-0 shadow-sm h-100" style={{ background: 'linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%)' }}>
             <Card.Body className="text-center py-3">
-              <h3 className="fw-bold text-danger mb-0">{rejectedRequests.length}</h3>
-              <small className="text-muted">Rejected</small>
+              <h3 className="fw-bold text-white mb-0">{rejectedRequests.length}</h3>
+              <small className="text-white-50">Rejected</small>
             </Card.Body>
           </Card>
         </Col>
@@ -322,7 +355,13 @@ const RequestsList = ({ onCancel }) => {
                           {req.landlordContact ? (
                             <div className="small">
                               <div><i className="bi bi-person me-1"></i>{req.landlordContact.name}</div>
-                              <div><i className="bi bi-phone me-1"></i>{req.landlordContact.phone}</div>
+                              {req.landlordContact.phone ? (
+                                <div><i className="bi bi-phone me-1"></i>{req.landlordContact.phone}</div>
+                              ) : req.landlordContact.email ? (
+                                <div><i className="bi bi-envelope me-1"></i>{req.landlordContact.email}</div>
+                              ) : (
+                                <div className="text-muted">Contact info pending</div>
+                              )}
                             </div>
                           ) : (
                             <Badge bg="secondary">Contact Hidden</Badge>
@@ -333,7 +372,7 @@ const RequestsList = ({ onCancel }) => {
                             variant="outline-success"
                             size="sm"
                             href={`tel:${req.landlordContact?.phone}`}
-                            disabled={!req.landlordContact}
+                            disabled={!req.landlordContact?.phone}
                           >
                             <i className="bi bi-telephone me-1"></i>
                             Contact

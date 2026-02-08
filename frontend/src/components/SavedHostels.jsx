@@ -384,23 +384,24 @@ const SavedHostels = ({ onRemove }) => {
       <style>{`
         .saved-hostel-card {
           transition: transform 0.2s ease, box-shadow 0.2s ease;
+          border-left: 4px solid #667eea !important;
         }
 
         .saved-hostel-card:hover {
           transform: translateY(-2px);
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
+          box-shadow: 0 4px 12px rgba(102, 126, 234, 0.25) !important;
         }
 
         .hostel-image-placeholder {
           width: 60px;
           height: 60px;
-          background: var(--gray-200);
-          border-radius: 8px;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          border-radius: 12px;
           display: flex;
           align-items: center;
           justify-content: center;
           font-size: 24px;
-          color: var(--gray-500);
+          color: white;
         }
       `}</style>
     </>

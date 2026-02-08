@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Card, Form, Button, Row, Col, Alert } from 'react-bootstrap';
+import React, { useState, useEffect } from 'react';
+import { Card, Form, Button, Row, Col, Alert, Badge, Spinner } from 'react-bootstrap';
 import { useAuth } from '../auth/AuthContext';
 
 /**
@@ -7,36 +7,139 @@ import { useAuth } from '../auth/AuthContext';
  * Manages landlord profile information
  */
 const ProfileSection = () => {
-  const { user } = useAuth();
+  const { user, updateProfile, loading: authLoading } = useAuth();
   const [formData, setFormData] = useState({
     name: user?.name || '',
     email: user?.email || '',
-    phone: '',
-    address: '',
-    emergencyContact: ''
+    phone: user?.phone || '',
+    address: user?.address || '',
+    emergencyContact: user?.emergencyContact || ''
   });
 
   const [saved, setSaved] = useState(false);
   const [validated, setValidated] = useState(false);
+  const [errors, setErrors] = useState({});
+
+  // Sync form data when user data changes
+  useEffect(() => {
+    if (user) {
+      setFormData({
+        name: user.name || '',
+        email: user.email || '',
+        phone: user.phone || '',
+        address: user.address || '',
+        emergencyContact: user.emergencyContact || ''
+      });
+    }
+  }, [user]);
+
+  // Show loading state while auth is initializing
+  if (authLoading) {
+    return (
+      <div className="d-flex justify-content-center align-items-center p-5">
+        <Spinner animation="border" variant="primary" />
+        <span className="ms-3">Loading profile...</span>
+      </div>
+    );
+  }
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
     setSaved(false);
+    setErrors(prev => ({ ...prev, [name]: '' }));
+  };
+
+  const validateForm = () => {
+    const newErrors = {};
+    if (!formData.name.trim()) {
+      newErrors.name = 'Full name is required';
+    }
+    if (!formData.phone.trim()) {
+      newErrors.phone = 'Phone number is required';
+    }
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
     
+    if (!validateForm()) {
+      setValidated(true);
+      return;
+    }
+    
     // Simulate API call
     console.log('Profile data to save:', formData);
+    if (updateProfile) updateProfile(formData);
     setSaved(true);
     
     setTimeout(() => setSaved(false), 3000);
   };
 
+  // Generate avatar initials
+  const getInitials = (name) => {
+    if (!name) return 'L';
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  };
+
+  // Format date for member since
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    return new Date(dateString).toLocaleDateString('en-KE', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  };
+
+  // Get verification status
+  const getVerificationStatus = () => {
+    if (!user) return { status: 'Unknown', variant: 'secondary' };
+    
+    const verified = user.verified || {};
+    if (verified.identity && verified.phone && verified.email) {
+      return { status: 'Fully Verified', variant: 'success' };
+    } else if (verified.email) {
+      return { status: 'Email Verified', variant: 'info' };
+    }
+    return { status: 'Pending', variant: 'warning' };
+  };
+
+  const verification = getVerificationStatus();
+
   return (
     <Row className="g-4">
+      {/* Profile Header */}
+      <Col xs={12}>
+        <Card className="border-0 shadow-sm mb-4">
+          <Card.Body className="d-flex flex-wrap align-items-center gap-4">
+            <div 
+              className="profile-avatar d-flex align-items-center justify-content-center rounded-circle text-white fw-bold"
+              style={{ width: '80px', height: '80px', fontSize: '1.75rem', background: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)' }}
+              aria-hidden="true"
+            >
+              {getInitials(formData.name)}
+            </div>
+            <div className="flex-grow-1">
+              <h4 className="fw-bold mb-1">{formData.name || 'Landlord User'}</h4>
+              <p className="text-muted mb-2">{formData.email || 'No email set'}</p>
+              <div className="d-flex flex-wrap gap-2">
+                <Badge bg="success">
+                  <i className="bi bi-building me-1"></i>
+                  Landlord
+                </Badge>
+                <Badge bg={verification.variant}>
+                  <i className="bi bi-patch-check-fill me-1"></i>
+                  {verification.status}
+                </Badge>
+              </div>
+            </div>
+          </Card.Body>
+        </Card>
+      </Col>
+
       {/* Profile Information */}
       <Col lg={8}>
         <Card className="profile-card border-0 shadow-sm">
@@ -48,9 +151,9 @@ const ProfileSection = () => {
           </Card.Header>
           <Card.Body className="p-4">
             {saved && (
-              <Alert variant="success" className="mb-3">
-                <i className="bi bi-check-circle me-2"></i>
-                Profile updated successfully!
+              <Alert variant="success" className="mb-3 d-flex align-items-center">
+                <i className="bi bi-check-circle me-2 fs-5"></i>
+                <span>Profile updated successfully!</span>
               </Alert>
             )}
 
@@ -65,7 +168,12 @@ const ProfileSection = () => {
                       value={formData.name}
                       onChange={handleChange}
                       placeholder="Enter your full name"
+                      isInvalid={!!errors.name}
+                      aria-label="Full name"
                     />
+                    <Form.Control.Feedback type="invalid">
+                      {errors.name}
+                    </Form.Control.Feedback>
                   </Form.Group>
                 </Col>
 
@@ -79,6 +187,8 @@ const ProfileSection = () => {
                       onChange={handleChange}
                       placeholder="Enter your email"
                       disabled
+                      className="bg-light"
+                      aria-label="Email address"
                     />
                     <small className="text-muted">Email cannot be changed</small>
                   </Form.Group>
@@ -93,7 +203,12 @@ const ProfileSection = () => {
                       value={formData.phone}
                       onChange={handleChange}
                       placeholder="Enter phone number"
+                      isInvalid={!!errors.phone}
+                      aria-label="Phone number"
                     />
+                    <Form.Control.Feedback type="invalid">
+                      {errors.phone}
+                    </Form.Control.Feedback>
                   </Form.Group>
                 </Col>
 
@@ -106,6 +221,7 @@ const ProfileSection = () => {
                       value={formData.address}
                       onChange={handleChange}
                       placeholder="Enter your address"
+                      aria-label="Address"
                     />
                   </Form.Group>
                 </Col>
@@ -119,6 +235,7 @@ const ProfileSection = () => {
                       value={formData.emergencyContact}
                       onChange={handleChange}
                       placeholder="Emergency contact number"
+                      aria-label="Emergency contact"
                     />
                   </Form.Group>
                 </Col>
@@ -147,18 +264,25 @@ const ProfileSection = () => {
           <Card.Body>
             <div className="account-detail mb-3">
               <small className="text-muted d-block">Account Type</small>
-              <span className="badge bg-primary">Landlord</span>
+              <span className="badge bg-success">
+                <i className="bi bi-building me-1"></i>
+                Landlord
+              </span>
             </div>
             <div className="account-detail mb-3">
               <small className="text-muted d-block">Member Since</small>
-              <span>January 2024</span>
+              <span>{formatDate(user?.createdAt)}</span>
             </div>
             <div className="account-detail mb-3">
               <small className="text-muted d-block">Verification Status</small>
-              <span className="badge bg-success">
+              <span className={`badge bg-${verification.variant}`}>
                 <i className="bi bi-patch-check-fill me-1"></i>
-                Verified
+                {verification.status}
               </span>
+            </div>
+            <div className="account-detail mb-0">
+              <small className="text-muted d-block">Properties Listed</small>
+              <span>{user?.propertiesCount || 0} properties</span>
             </div>
           </Card.Body>
         </Card>
@@ -203,6 +327,15 @@ const ProfileSection = () => {
 
         .profile-card:hover, .account-info-card:hover, .password-card:hover {
           box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
+        }
+
+        .profile-avatar {
+          flex-shrink: 0;
+        }
+
+        .form-control:disabled {
+          background: var(--gray-100);
+          opacity: 0.7;
         }
       `}</style>
     </Row>

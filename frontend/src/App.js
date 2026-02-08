@@ -1,9 +1,10 @@
-import React, { useState, lazy, Suspense } from 'react';
-import { Navbar, Nav, Container, Button, Form, Row, Col, Card } from 'react-bootstrap';
-import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation } from 'react-router-dom';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
+import { Navbar, Nav, Container, Button, Form, Row, Col, Card, Badge, Dropdown, Spinner } from 'react-bootstrap';
+import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './auth/AuthContext';
 import ProtectedRoute from './auth/ProtectedRoute';
 import SkipLink from './components/SkipLink';
+import { getMyNotifications, markNotificationRead, markAllNotificationsRead } from './api/notifications';
 
 // Lazy load pages for code splitting and better performance
 const Hostels = lazy(() => import('./pages/Hostels'));
@@ -38,11 +39,134 @@ const Navigation = () => {
   const [expanded, setExpanded] = useState(false);
   const { user, isAuthenticated, logout } = useAuth();
   const location = useLocation();
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [notifications, setNotifications] = useState([]);
+  const [notificationsTotal, setNotificationsTotal] = useState(0);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
+  const [notificationsError, setNotificationsError] = useState(null);
+  const userId = user?._id || user?.id;
   
   // Hide navbar on landlord/student/admin dashboard routes
   const isDashboardRoute = location.pathname.startsWith('/landlord/') || 
                             location.pathname.startsWith('/student/') || 
                             location.pathname.startsWith('/admin/');
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchUnreadCount = async () => {
+      if (!isAuthenticated || !userId) {
+        if (isMounted) setUnreadCount(0);
+        return;
+      }
+
+      try {
+        const response = await getMyNotifications({ isRead: false, limit: 1 });
+        const total = response?.data?.pagination?.total;
+        const fallbackTotal = response?.data?.notifications?.length || 0;
+        if (isMounted) {
+          setUnreadCount(Number.isFinite(total) ? total : fallbackTotal);
+        }
+      } catch (error) {
+        if (isMounted) {
+          setUnreadCount(0);
+        }
+      }
+    };
+
+    fetchUnreadCount();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isAuthenticated, userId]);
+
+  useEffect(() => {
+    if (location.pathname !== '/' || !location.hash) return;
+
+    let attempts = 0;
+    const hashId = location.hash.replace('#', '');
+
+    const tryScroll = () => {
+      const target = document.getElementById(hashId);
+      if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        return;
+      }
+
+      attempts += 1;
+      if (attempts < 5) {
+        setTimeout(tryScroll, 100);
+      }
+    };
+
+    tryScroll();
+  }, [location.pathname, location.hash]);
+
+  const loadNotifications = async () => {
+    if (!isAuthenticated || !userId) {
+      setNotifications([]);
+      setNotificationsTotal(0);
+      return;
+    }
+
+    setNotificationsLoading(true);
+    setNotificationsError(null);
+    try {
+      const response = await getMyNotifications({ limit: 5 });
+      const list = response?.data?.notifications || [];
+      const total = response?.data?.pagination?.total;
+      setNotifications(list);
+      setNotificationsTotal(Number.isFinite(total) ? total : list.length);
+    } catch (error) {
+      setNotificationsError(error?.message || 'Failed to load notifications');
+    } finally {
+      setNotificationsLoading(false);
+    }
+  };
+
+  const handleMarkRead = async (notificationId) => {
+    if (!notificationId) return;
+    try {
+      await markNotificationRead(notificationId);
+      setNotifications((prev) =>
+        prev.map((item) =>
+          item._id === notificationId || item.id === notificationId
+            ? { ...item, isRead: true }
+            : item
+        )
+      );
+      setUnreadCount((prev) => Math.max(prev - 1, 0));
+    } catch (error) {
+      setNotificationsError(error?.message || 'Failed to update notification');
+    }
+  };
+
+  const handleMarkAllRead = async () => {
+    try {
+      await markAllNotificationsRead();
+      setNotifications((prev) => prev.map((item) => ({ ...item, isRead: true })));
+      setUnreadCount(0);
+    } catch (error) {
+      setNotificationsError(error?.message || 'Failed to update notifications');
+    }
+  };
+
+  const formatNotificationTime = (value) => {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleDateString('en-KE', {
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
+  const truncateText = (value, limit = 80) => {
+    if (!value) return '';
+    const text = String(value);
+    return text.length > limit ? `${text.slice(0, limit)}...` : text;
+  };
+
   if (isDashboardRoute) {
     return null;
   }
@@ -67,6 +191,25 @@ const Navigation = () => {
   if (isAuthenticated && user?.role === 'student') {
     navLinks.push({ href: '/student/dashboard', label: 'My Dashboard' });
   }
+
+  const handleNavClick = (link) => {
+    if (link.isAnchor) {
+      if (location.pathname !== '/') {
+        setExpanded(false);
+        return;
+      }
+
+      const targetId = link.href.replace('/#', '');
+      const target = document.getElementById(targetId);
+      if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        setExpanded(false);
+        return;
+      }
+    }
+
+    setExpanded(false);
+  };
 
   return (
     <Navbar
@@ -95,7 +238,7 @@ const Navigation = () => {
                 key={index}
                 as={Link}
                 to={link.href}
-                onClick={() => setExpanded(false)}
+                onClick={() => handleNavClick(link)}
               >
                 {link.label}
               </Nav.Link>
@@ -124,6 +267,85 @@ const Navigation = () => {
             </div>
           ) : (
             <Nav className="d-flex flex-column flex-lg-row gap-2 mt-3 mt-lg-0 align-items-center">
+              <Dropdown
+                align="end"
+                onToggle={(nextOpen) => {
+                  if (nextOpen) {
+                    loadNotifications();
+                  }
+                }}
+              >
+                <Dropdown.Toggle
+                  variant="link"
+                  className="position-relative p-0 text-decoration-none text-muted"
+                  aria-label="Notifications"
+                >
+                  <i className="bi bi-bell fs-5"></i>
+                  {unreadCount > 0 && (
+                    <Badge
+                      bg="danger"
+                      pill
+                      className="position-absolute top-0 start-100 translate-middle"
+                    >
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </Badge>
+                  )}
+                </Dropdown.Toggle>
+                <Dropdown.Menu className="shadow-sm" style={{ minWidth: '320px' }}>
+                  <div className="d-flex justify-content-between align-items-center px-3 py-2">
+                    <span className="fw-bold">Notifications</span>
+                    <Button
+                      variant="link"
+                      size="sm"
+                      className="text-decoration-none"
+                      onClick={handleMarkAllRead}
+                      disabled={unreadCount === 0}
+                    >
+                      Mark all read
+                    </Button>
+                  </div>
+                  <Dropdown.Divider />
+                  {notificationsLoading ? (
+                    <div className="text-center py-3 text-muted">
+                      <Spinner animation="border" size="sm" className="me-2" />
+                      Loading...
+                    </div>
+                  ) : notificationsError ? (
+                    <div className="text-danger px-3 py-2">{notificationsError}</div>
+                  ) : notifications.length === 0 ? (
+                    <div className="text-muted px-3 py-2">No notifications yet</div>
+                  ) : (
+                    notifications.map((notification) => {
+                      const notificationId = notification._id || notification.id;
+                      return (
+                        <Dropdown.Item
+                          key={notificationId}
+                          className={`py-2 ${notification.isRead ? 'text-muted' : 'fw-semibold'}`}
+                          onClick={() => handleMarkRead(notificationId)}
+                        >
+                          <div className="d-flex justify-content-between align-items-start">
+                            <span className="me-2">{notification.title}</span>
+                            <small className="text-muted">
+                              {formatNotificationTime(notification.createdAt)}
+                            </small>
+                          </div>
+                          <div className="small text-muted">
+                            {truncateText(notification.message)}
+                          </div>
+                        </Dropdown.Item>
+                      );
+                    })
+                  )}
+                  {notificationsTotal > notifications.length && (
+                    <>
+                      <Dropdown.Divider />
+                      <div className="text-center py-2 text-muted small">
+                        Showing {notifications.length} of {notificationsTotal}
+                      </div>
+                    </>
+                  )}
+                </Dropdown.Menu>
+              </Dropdown>
               <span className="text-muted small mb-2 mb-lg-0">
                 <i className="bi bi-person-circle me-1"></i>
                 {user?.name || user?.email}
@@ -152,6 +374,19 @@ const Navigation = () => {
 // COMPONENT: Hero Section with Search Bar
 // =============================================================================
 const HeroSection = () => {
+  const [location, setLocation] = useState('');
+  const [budget, setBudget] = useState('');
+  const [hostelType, setHostelType] = useState('');
+  const navigate = useNavigate();
+
+  const handleSearch = () => {
+    const params = new URLSearchParams();
+    if (location) params.set('location', location);
+    if (budget) params.set('budget', budget);
+    if (hostelType) params.set('type', hostelType);
+    navigate(`/hostels?${params.toString()}`);
+  };
+
   return (
     <section id="home" className="hero-section">
       <Container>
@@ -181,24 +416,34 @@ const HeroSection = () => {
                         type="text"
                         placeholder="Enter university or location"
                         className="form-control"
+                        value={location}
+                        onChange={(e) => setLocation(e.target.value)}
                       />
                     </Col>
                     <Col xs={12} md={3}>
-                      <Form.Select className="form-select">
+                      <Form.Select
+                        className="form-select"
+                        value={budget}
+                        onChange={(e) => setBudget(e.target.value)}
+                      >
                         <option value="">Select Budget</option>
-                        <option value="5000">1500 - 2000</option>
-                        <option value="15000">2000 - 3000</option>
-                        <option value="20000">3000 - 4000</option>
-                        <option value="25000">4000 - 5000</option>
-                      
+                        <option value="0-2000">Under Ksh. 2,000</option>
+                        <option value="2000-3000">Ksh. 2,000 - 3,000</option>
+                        <option value="3000-4000">Ksh. 3,000 - 4,000</option>
+                        <option value="4000-5000">Ksh. 4,000 - 5,000</option>
+                        <option value="5000-10000">Over Ksh. 5,000</option>
                       </Form.Select>
                     </Col>
                     <Col xs={12} md={3}>
-                      <Form.Select className="form-select">
+                      <Form.Select
+                        className="form-select"
+                        value={hostelType}
+                        onChange={(e) => setHostelType(e.target.value)}
+                      >
                         <option value="">Hostel Type</option>
-                        <option value="male">Male Hostel</option>
-                        <option value="female">Female Hostel</option>
-                        <option value="mixed">Mixed Hostel</option>
+                        <option value="male">Male Only</option>
+                        <option value="female">Female Only</option>
+                        <option value="mixed">Mixed</option>
                       </Form.Select>
                     </Col>
                     <Col xs={12} md={2}>
@@ -206,8 +451,7 @@ const HeroSection = () => {
                         variant="primary"
                         className="btn-search w-100"
                         type="button"
-                        as={Link}
-                        to="/hostels"
+                        onClick={handleSearch}
                       >
                         <i className="bi bi-search me-1"></i>
                         Search
@@ -277,117 +521,35 @@ const ProblemSection = () => {
       title: 'Poor-Quality Housing',
       description: 'Many hostels misrepresent their facilities online. Students discover mold, poor sanitation, or broken amenities only after paying.',
     },
-    {
-      icon: 'bi bi-eye-slash',
-      title: 'Lack of Transparency',
-      description: 'Hidden fees, unclear pricing, and vague amenity lists make it difficult to compare options fairly.',
-    },
   ];
 
   return (
-    <section className="section-padding bg-light">
+    <section id="problems" className="problems-section">
       <Container>
-        <div className="text-center mb-5">
-          <h2 className="section-title">The Student Housing Struggle</h2>
-          <p className="section-subtitle">
-            Finding the right off-campus hostel shouldn't be this hard. Here's what students face every year.
-          </p>
-        </div>
+        <Row className="mb-5">
+          <Col className="text-center">
+            <span className="section-badge">The Problem</span>
+            <h2 className="section-title mt-2">Why Finding Student Housing is Challenging</h2>
+            <p className="section-subtitle">
+              Kenyan university students face significant obstacles when searching for off-campus accommodation
+            </p>
+          </Col>
+        </Row>
 
-        <Row>
+        <Row className="g-4">
           {problems.map((problem, index) => (
-            <Col key={index} md={6} lg={3} className="mb-4">
-              <Card className="problem-card h-100">
-                <Card.Body>
-                  <div className="icon-box icon-box-primary mb-3 mx-auto">
-                    <i className={`bi ${problem.icon}`}></i>
+            <Col key={index} md={4}>
+              <Card className="problem-card h-100 border-0 shadow-sm">
+                <Card.Body className="p-4">
+                  <div className="problem-icon mb-3">
+                    <i className={`bi ${problem.icon} fs-1`}></i>
                   </div>
-                  <Card.Title className="h5 fw-bold mb-3 text-center">
-                    {problem.title}
-                  </Card.Title>
-                  <Card.Text className="text-muted text-center">
-                    {problem.description}
-                  </Card.Text>
+                  <h5 className="problem-title">{problem.title}</h5>
+                  <p className="problem-description text-muted">{problem.description}</p>
                 </Card.Body>
               </Card>
             </Col>
           ))}
-        </Row>
-      </Container>
-    </section>
-  );
-};
-
-// =============================================================================
-// COMPONENT: Solution / Value Proposition Section
-// =============================================================================
-const SolutionSection = () => {
-  const solutions = [
-    {
-      icon: 'bi bi-patch-check',
-      title: 'Verified Landlords & Listings',
-      description: 'Every landlord undergoes a strict verification process. All listings are manually reviewed before going live.',
-    },
-    {
-      icon: 'bi bi-info-circle',
-      title: 'Transparent Details',
-      description: 'View complete hostel information — amenities, distance to campus, pricing, photos, and real student reviews.',
-    },
-    {
-      icon: 'bi bi-building',
-      title: 'Centralized Platform',
-      description: 'Browse hundreds of hostels in one place. Filter by budget, location, amenities, and preferences.',
-    },
-    {
-      icon: 'bi bi-clock-history',
-      title: 'Time-Saving Search',
-      description: 'Find and book your ideal hostel in minutes, not weeks. No more endless campus visits.',
-    },
-  ];
-
-  return (
-    <section className="section-padding">
-      <Container>
-        <Row className="align-items-center">
-          <Col lg={6} className="mb-4 mb-lg-0">
-            <img
-              src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 500 400'%3E%3Crect fill='%23ffffff' width='500' height='400' rx='20'/%3E%3Crect x='50' y='50' width='180' height='120' rx='10' fill='%231a5f7a' opacity='0.1'/%3E%3Crect x='270' y='80' width='180' height='120' rx='10' fill='%2357c5b6' opacity='0.2'/%3E%3Crect x='80' y='80' width='100' height='60' rx='5' fill='%231a5f7a' opacity='0.3'/%3E%3Crect x='300' y='110' width='100' height='60' rx='5' fill='%2357c5b6' opacity='0.4'/%3E%3Ccircle cx='130' cy='200' r='30' fill='%231a5f7a' opacity='0.5'/%3E%3Ccircle cx='350' cy='220' r='25' fill='%2357c5b6' opacity='0.5'/%3E%3Crect x='50' y='250' width='400' height='20' rx='5' fill='%23e9ecef'/%3E%3Crect x='50' y='280' width='400' height='20' rx='5' fill='%23e9ecef'/%3E%3Crect x='50' y='310' width='300' height='20' rx='5' fill='%23e9ecef'/%3E%3Ctext x='250' y='370' text-anchor='middle' font-family='Arial, sans-serif' font-size='14' fill='%231a5f7a'%3ESimple. Transparent. Trusted.%3C/text%3E%3C/svg%3E"
-              alt="Solution illustration"
-              className="img-fluid"
-            />
-          </Col>
-
-          <Col lg={6}>
-            <div className="ps-lg-5">
-              <h2 className="section-title">What Hostel Connect solves</h2>
-              <p className="text-muted mb-4">
-                We've built a platform that puts students first — eliminating the stress, scams, and uncertainty from your hostel search.
-              </p>
-
-              <Row>
-                {solutions.map((solution, index) => (
-                  <Col key={index} xs={12} className="mb-3">
-                    <div className="d-flex align-items-start">
-                      <div className="icon-box icon-box-secondary me-3 flex-shrink-0">
-                        <i className={`bi ${solution.icon}`}></i>
-                      </div>
-                      <div>
-                        <h5 className="fw-bold mb-1">{solution.title}</h5>
-                        <p className="text-muted mb-0">{solution.description}</p>
-                      </div>
-                    </div>
-                  </Col>
-                ))}
-              </Row>
-
-              <div className="mt-4">
-                <Button variant="primary" className="btn-primary-custom" as={Link} to="/hostels">
-                  Find Hostels Now
-                  <i className="bi bi-arrow-right ms-2"></i>
-                </Button>
-              </div>
-            </div>
-          </Col>
         </Row>
       </Container>
     </section>
@@ -400,51 +562,54 @@ const SolutionSection = () => {
 const HowItWorksSection = () => {
   const steps = [
     {
-      icon: 'bi bi-geo-alt',
-      stepNumber: '1',
-      title: 'Search Hostels',
-      description: 'Enter your university location and browse verified hostels nearby with advanced filters.',
+      number: '01',
+      title: 'Search & Compare',
+      description: 'Browse verified listings with detailed photos, amenities, and reviews from real students.',
+      icon: 'bi bi-search',
     },
     {
-      icon: 'bi bi-card-checklist',
-      stepNumber: '2',
-      title: 'View Verified Listings',
-      description: 'Explore detailed profiles with photos, amenities, pricing, and verified student reviews.',
-    },
-    {
+      number: '02',
+      title: 'Connect Directly',
+      description: 'Contact landlords directly through our secure messaging system — no middlemen or agent fees.',
       icon: 'bi bi-chat-dots',
-      stepNumber: '3',
-      title: 'Contact Landlords',
-      description: 'Message verified landlords directly through our secure platform to schedule viewings.',
     },
     {
-      icon: 'bi bi-house-check',
-      stepNumber: '4',
-      title: 'Book Your Hostel',
-      description: 'Find your perfect fit and secure your room with confidence and peace of mind.',
+      number: '03',
+      title: 'Visit & Decide',
+      description: 'Schedule viewings at your convenience. Take your time to make the right choice.',
+      icon: 'bi bi-calendar-check',
+    },
+    {
+      number: '04',
+      title: 'Book Securely',
+      description: 'Complete your booking with confidence. Our verification system protects you from scams.',
+      icon: 'bi bi-shield-check',
     },
   ];
 
   return (
-    <section id="how-it-works" className="section-padding bg-light">
+    <section id="how-it-works" className="how-it-works-section">
       <Container>
-        <div className="text-center mb-5">
-          <h2 className="section-title">How It Works</h2>
-          <p className="section-subtitle">
-            Finding your next home is simple — just 4 easy steps
-          </p>
-        </div>
+        <Row className="mb-5">
+          <Col className="text-center">
+            <span className="section-badge">How It Works</span>
+            <h2 className="section-title mt-2">Find Your Perfect Hostel in 4 Simple Steps</h2>
+            <p className="section-subtitle">
+              Our platform makes it easy to find and book verified student housing
+            </p>
+          </Col>
+        </Row>
 
-        <Row>
+        <Row className="g-4">
           {steps.map((step, index) => (
-            <Col key={index} sm={6} lg={3} className="mb-4">
-              <div className="text-center">
-                <div className="step-icon mx-auto position-relative">
-                  <i className={`bi ${step.icon}`}></i>
-                  <span className="step-number">{step.stepNumber}</span>
+            <Col key={index} xs={12} sm={6} lg={3}>
+              <div className="step-card text-center h-100">
+                <div className="step-number mb-3">{step.number}</div>
+                <div className="step-icon mb-3">
+                  <i className={`bi ${step.icon} fs-2`}></i>
                 </div>
-                <h4 className="fw-bold mt-3 mb-2">{step.title}</h4>
-                <p className="text-muted">{step.description}</p>
+                <h5 className="step-title">{step.title}</h5>
+                <p className="step-description text-muted">{step.description}</p>
               </div>
             </Col>
           ))}
@@ -455,68 +620,55 @@ const HowItWorksSection = () => {
 };
 
 // =============================================================================
-// COMPONENT: Key Features Section
+// COMPONENT: Features Section
 // =============================================================================
 const FeaturesSection = () => {
   const features = [
     {
       icon: 'bi bi-patch-check-fill',
-      title: 'Verified Hostels',
-      description: 'All listings go through our verification process to ensure quality and authenticity.',
-    },
-    {
-      icon: 'bi bi-camera-fill',
-      title: 'Real Photos & Amenities',
-      description: 'Browse actual photos and detailed amenity lists to make informed decisions.',
-    },
-    {
-      icon: 'bi bi-currency-dollar',
-      title: 'No Agents, No Fees',
-      description: 'Connect directly with landlords. No middlemen, no hidden viewing fees.',
-    },
-    {
-      icon: 'bi bi-shield-check',
-      title: 'Secure Platform',
-      description: 'Your data is protected. Report suspicious listings and stay safe.',
-    },
-    {
-      icon: 'bi bi-people-fill',
-      title: 'Student-Focused',
-      description: 'Designed by students, for students. We understand your needs and budget.',
+      title: '100% Verified Landlords',
+      description: 'Every landlord undergoes thorough verification including identity checks, property ownership verification, and background screening.',
     },
     {
       icon: 'bi bi-star-fill',
-      title: 'Student Reviews',
-      description: 'Read authentic reviews from current and past tenants.',
+      title: 'Honest Student Reviews',
+      description: 'Read authentic reviews from verified students who have lived in the hostels. No fake reviews — just honest feedback.',
+    },
+    {
+      icon: 'bi bi-currency-exchange',
+      title: 'Transparent Pricing',
+      description: 'No hidden fees or surprise charges. See the full cost breakdown including deposit, rent, and any additional expenses upfront.',
+    },
+    {
+      icon: 'bi bi-geo-alt-fill',
+      title: 'Location Insights',
+      description: 'Find hostels close to your university with information about nearby shops, hospitals, and public transportation.',
     },
   ];
 
   return (
-    <section className="section-padding">
+    <section id="features" className="features-section">
       <Container>
-        <div className="text-center mb-5">
-          <h2 className="section-title">Key Features</h2>
-          <p className="section-subtitle">
-            Everything you need to find your perfect student accommodation
-          </p>
-        </div>
+        <Row className="mb-5">
+          <Col className="text-center">
+            <span className="section-badge">Why Choose Us</span>
+            <h2 className="section-title mt-2">The Hostel Connect Difference</h2>
+            <p className="section-subtitle">
+              We're building the most trusted student housing platform in Kenya
+            </p>
+          </Col>
+        </Row>
 
-        <Row>
+        <Row className="g-4">
           {features.map((feature, index) => (
-            <Col key={index} sm={6} lg={4} className="mb-4">
-              <Card className="feature-card h-100">
-                <Card.Body className="text-center">
-                  <div className="icon-box icon-box-accent mx-auto mb-3">
-                    <i className={`bi ${feature.icon}`}></i>
-                  </div>
-                  <Card.Title className="h5 fw-bold mb-2">
-                    {feature.title}
-                  </Card.Title>
-                  <Card.Text className="text-muted">
-                    {feature.description}
-                  </Card.Text>
-                </Card.Body>
-              </Card>
+            <Col key={index} md={6} lg={3}>
+              <div className="feature-card h-100 text-center p-4 rounded-4">
+                <div className="feature-icon mb-3">
+                  <i className={`bi ${feature.icon} fs-1`}></i>
+                </div>
+                <h5 className="feature-title">{feature.title}</h5>
+                <p className="feature-description text-muted">{feature.description}</p>
+              </div>
             </Col>
           ))}
         </Row>
@@ -526,122 +678,42 @@ const FeaturesSection = () => {
 };
 
 // =============================================================================
-// COMPONENT: Trust & Transparency Section
+// COMPONENT: Trust Section
 // =============================================================================
 const TrustSection = () => {
-  const trustItems = [
-    {
-      icon: 'bi bi-patch-check-fill',
-      title: 'Verified Badge',
-      description: 'Landlords must verify their identity and property documents before listing.',
-    },
-    {
-      icon: 'bi bi-check-circle-fill',
-      title: 'Admin-Approved Listings',
-      description: 'Our team reviews every listing to ensure accuracy and quality standards.',
-    },
-    {
-      icon: 'bi bi-shield-fill',
-      title: 'Fraud Prevention',
-      description: 'Report suspicious activity. We actively investigate and remove fake listings.',
-    },
-    {
-      icon: 'bi bi-person-check-fill',
-      title: 'Real Student Reviews',
-      description: 'Only verified students can leave reviews, ensuring authentic feedback.',
-    },
+  const trustMetrics = [
+    { value: '10,000+', label: 'Active Users' },
+    { value: '500+', label: 'Verified Hostels' },
+    { value: '50+', label: 'Partner Universities' },
+    { value: '98%', label: 'Satisfaction Rate' },
   ];
 
   return (
-    <section className="section-padding bg-light">
+    <section className="trust-section">
       <Container>
         <Row className="align-items-center">
           <Col lg={6} className="mb-4 mb-lg-0">
-            <h2 className="section-title">Why Students Trust Hostel Connect</h2>
-            <p className="text-muted mb-4">
-              We've built a platform based on trust, transparency, and student safety.
-              Here's what makes us different:
+            <span className="section-badge">Trusted by Students</span>
+            <h2 className="section-title mt-2">Join Thousands of Happy Students</h2>
+            <p className="trust-description">
+              Hostel Connect has helped thousands of university students find safe, verified, and affordable accommodation. Join our community today and experience the difference.
             </p>
-
-            <Row>
-              {trustItems.map((item, index) => (
-                <Col key={index} xs={12} className="mb-3">
-                  <div className="d-flex align-items-start">
-                    <div
-                      className="icon-box icon-box-primary flex-shrink-0 me-3"
-                      style={{ width: '50px', height: '50px', fontSize: '20px' }}
-                    >
-                      <i className={`bi ${item.icon}`}></i>
-                    </div>
-                    <div>
-                      <h6 className="fw-bold mb-1">{item.title}</h6>
-                      <p className="text-muted mb-0 small">{item.description}</p>
-                    </div>
+            <Button variant="primary" size="lg" as={Link} to="/hostels" className="mt-3">
+              <i className="bi bi-search me-2"></i>
+              Start Searching
+            </Button>
+          </Col>
+          <Col lg={6}>
+            <Row className="g-4">
+              {trustMetrics.map((metric, index) => (
+                <Col key={index} xs={6}>
+                  <div className="trust-metric-card text-center p-4 rounded-4">
+                    <h3 className="trust-metric-value">{metric.value}</h3>
+                    <p className="trust-metric-label text-muted mb-0">{metric.label}</p>
                   </div>
                 </Col>
               ))}
             </Row>
-          </Col>
-
-          <Col lg={6}>
-            <Card className="border-0 shadow-lg">
-              <Card.Body className="p-5">
-                <div className="text-center mb-4">
-                  <div
-                    className="icon-box icon-box-secondary mx-auto"
-                    style={{ width: '80px', height: '80px', fontSize: '36px' }}
-                  >
-                    <i className="bi bi-award-fill"></i>
-                  </div>
-                  <h4 className="fw-bold mt-3">Student Satisfaction Guarantee</h4>
-                  <p className="text-muted">
-                    Your satisfaction is our priority. If you encounter any issues,
-                    our support team is here to help.
-                  </p>
-                </div>
-
-                {/* Placeholder Testimonials */}
-                <div className="border-top pt-4">
-                  <div className="mb-3">
-                    <div className="d-flex align-items-center mb-2">
-                      <div
-                        className="bg-primary rounded-circle d-flex align-items-center justify-content-center text-white me-3"
-                        style={{ width: '40px', height: '40px' }}
-                      >
-                        <i className="bi bi-person-fill"></i>
-                      </div>
-                      <div>
-                        <h6 className="fw-bold mb-0">Treva O.G</h6>
-                        <small className="text-muted">Kibabii University</small>
-                      </div>
-                    </div>
-                    <p className="text-muted small mb-0">
-                      "Found my perfect hostel in just 2 days! No agents, no scams.
-                      Hostel Connect made my search so easy."
-                    </p>
-                  </div>
-
-                  <div>
-                    <div className="d-flex align-items-center mb-2">
-                      <div
-                        className="bg-secondary rounded-circle d-flex align-items-center justify-content-center text-white me-3"
-                        style={{ width: '40px', height: '40px' }}
-                      >
-                        <i className="bi bi-person-fill"></i>
-                      </div>
-                      <div>
-                        <h6 className="fw-bold mb-0">Gilbert B.W</h6>
-                        <small className="text-muted">Kibabii University</small>
-                      </div>
-                    </div>
-                    <p className="text-muted small mb-0">
-                      "The verified listings feature gave me peace of mind.
-                      Highly recommend for any student looking for housing."
-                    </p>
-                  </div>
-                </div>
-              </Card.Body>
-            </Card>
           </Col>
         </Row>
       </Container>
@@ -650,38 +722,58 @@ const TrustSection = () => {
 };
 
 // =============================================================================
-// COMPONENT: Call to Action Section
+// COMPONENT: Safety Tips Section
 // =============================================================================
-const CTASection = () => {
+const SafetyTipsSection = () => {
+  const tips = [
+    {
+      icon: 'bi bi-cash-coin',
+      title: 'Never Pay Viewing Fees',
+      description: 'Genuine landlords don\'t charge for viewings. If an agent asks for money before showing a property, it\'s likely a scam.',
+    },
+    {
+      icon: 'bi bi-file-earmark-text',
+      title: 'Get Everything in Writing',
+      description: 'Always get your rental agreement in writing. Read carefully before signing and keep a copy of the contract.',
+    },
+    {
+      icon: 'bi bi-camera',
+      title: 'Document the Property',
+      description: 'Take photos of the property before moving in. Document any existing damage to avoid disputes when moving out.',
+    },
+    {
+      icon: 'bi bi-person-badge',
+      title: 'Verify Landlord Identity',
+      description: 'Ask for identification and verify the landlord owns the property. Our verified badges help you identify trusted landlords.',
+    },
+  ];
+
   return (
-    <section className="cta-section">
+    <section id="safety" className="safety-section">
       <Container>
-        <div className="text-center">
-          <h2 className="cta-title">Stop Tarmacking. Find Your Next Hostel Online.</h2>
-          <p className="cta-subtitle">
-            Join thousands of students who found their perfect hostel without the stress.
-          </p>
-          <div className="d-flex flex-column flex-sm-row justify-content-center gap-3">
-            <Button
-              variant="light"
-              className="btn-light-custom"
-              as={Link}
-              to="/hostels"
-            >
-              <i className="bi bi-search me-2"></i>
-              Find Hostels
-            </Button>
-            <Button
-              variant="outline-light"
-              className="btn-outline-light-custom"
-              as={Link}
-              to="/register"
-            >
-              <i className="bi bi-building me-2"></i>
-              List Your Hostel
-            </Button>
-          </div>
-        </div>
+        <Row className="mb-5">
+          <Col className="text-center">
+            <span className="section-badge">Stay Safe</span>
+            <h2 className="section-title mt-2">Student Housing Safety Tips</h2>
+            <p className="section-subtitle">
+              Protect yourself from rental scams with these essential tips
+            </p>
+          </Col>
+        </Row>
+
+        <Row className="g-4">
+          {tips.map((tip, index) => (
+            <Col key={index} md={6} lg={3}>
+              <div className="safety-tip-card h-100 p-4 rounded-4">
+                <div className="safety-icon mb-3">
+                  <i className={`bi ${tip.icon} fs-1`}></i>
+                </div>
+                <h5 className="safety-title">{tip.title}</h5>
+                <p className="safety-description text-muted">{tip.description}</p>
+              </div>
+            </Col>
+          ))}
+        </Row>
       </Container>
     </section>
   );
@@ -693,262 +785,135 @@ const CTASection = () => {
 const Footer = () => {
   const currentYear = new Date().getFullYear();
 
-  const footerLinks = {
-    company: [
-      { label: 'About Us', href: '/#about' },
-      { label: 'How It Works', href: '/#how-it-works' },
-      { label: 'Careers', href: '#careers' },
-      { label: 'Press', href: '#press' },
-    ],
-    support: [
-      { label: 'Help Center', href: '#help' },
-      { label: 'Contact Us', href: '#contact' },
-      { label: 'FAQs', href: '#faqs' },
-      { label: 'Report a Problem', href: '#report' },
-    ],
-    legal: [
-      { label: 'Privacy Policy', href: '#privacy' },
-      { label: 'Terms of Service', href: '#terms' },
-      { label: 'Cookie Policy', href: '#cookies' },
-    ],
-  };
-
   return (
     <footer className="footer-section">
       <Container>
-        <Row>
+        <Row className="g-4 mb-4">
           <Col lg={4} className="mb-4 mb-lg-0">
-            <div className="footer-brand mb-4">
-              <h4 className="fw-bold text-white">
+            <div className="footer-brand">
+              <h5 className="footer-brand-name mb-3">
                 <i className="bi bi-house-door-fill me-2"></i>
                 Hostel Connect
-              </h4>
-              <p className="text-white-50 mb-3">
-                Connecting university students with verified off-campus hostels.
-                No agents, no scams — just trusted housing solutions.
+              </h5>
+              <p className="footer-description">
+                The trusted platform for finding verified student housing in Kenya. No agents, no scams — just safe, comfortable homes for students.
               </p>
-              <div className="d-flex gap-3">
-                <a href="#facebook" className="text-white-50 fs-5">
-                  <i className="bi bi-facebook"></i>
-                </a>
-                <a href="#twitter" className="text-white-50 fs-5">
-                  <i className="bi bi-twitter-x"></i>
-                </a>
-                <a href="#instagram" className="text-white-50 fs-5">
-                  <i className="bi bi-instagram"></i>
-                </a>
-                <a href="#linkedin" className="text-white-50 fs-5">
-                  <i className="bi bi-linkedin"></i>
-                </a>
-              </div>
             </div>
           </Col>
-
-          <Col sm={6} lg={2} className="mb-4 mb-sm-0">
-            <h5 className="footer-title">Company</h5>
-            <ul className="footer-links">
-              {footerLinks.company.map((link, index) => (
-                <li key={index}>
-                  <a href={link.href}>{link.label}</a>
-                </li>
-              ))}
+          <Col sm={6} lg={2}>
+            <h6 className="footer-heading">Quick Links</h6>
+            <ul className="footer-links list-unstyled">
+              <li><Link to="/">Home</Link></li>
+              <li><Link to="/hostels">Find Hostels</Link></li>
+              <li><Link to="/register">List Your Hostel</Link></li>
+              <li><Link to="/#how-it-works">How It Works</Link></li>
             </ul>
           </Col>
-
-          <Col sm={6} lg={2} className="mb-4 mb-sm-0">
-            <h5 className="footer-title">Support</h5>
-            <ul className="footer-links">
-              {footerLinks.support.map((link, index) => (
-                <li key={index}>
-                  <a href={link.href}>{link.label}</a>
-                </li>
-              ))}
+          <Col sm={6} lg={3}>
+            <h6 className="footer-heading">Resources</h6>
+            <ul className="footer-links list-unstyled">
+              <li><Link to="/#safety">Safety Tips</Link></li>
+              <li><Link to="/#features">Why Choose Us</Link></li>
+              <li><Link to="/#problems">Student Housing Guide</Link></li>
+              <li><Link to="/register">Become a Landlord</Link></li>
             </ul>
           </Col>
-
-          <Col lg={4}>
-            <h5 className="footer-title">Contact Us</h5>
-            <ul className="footer-links">
-              <li>
-                <i className="bi bi-envelope-fill me-2"></i>
-                support@hostelconnect.com
-              </li>
-              <li>
-                <i className="bi bi-telephone-fill me-2"></i>
-                +254705049184
-              </li>
-              <li>
-                <i className="bi bi-geo-alt-fill me-2"></i>
-                Kenya(Serving students nationwide)
-              </li>
+          <Col sm={6} lg={3}>
+            <h6 className="footer-heading">Contact</h6>
+            <ul className="footer-links list-unstyled">
+              <li><i className="bi bi-envelope me-2"></i>support@hostelconnect.co.ke</li>
+              <li><i className="bi bi-telephone me-2"></i>+254 700 000 000</li>
+              <li><i className="bi bi-geo-alt me-2"></i>Nairobi, Kenya</li>
             </ul>
           </Col>
         </Row>
-
-        <div className="footer-bottom text-center text-md-start">
-          <Row className="align-items-center">
-            <Col md={6} className="mb-3 mb-md-0">
-              <p className="mb-0 text-white-50">
-                © {currentYear} Hostel Connect. All rights reserved.
-              </p>
-            </Col>
-            <Col md={6}>
-              <ul className="footer-links d-flex justify-content-md-end gap-4 mb-0">
-                {footerLinks.legal.map((link, index) => (
-                  <li key={index}>
-                    <a href={link.href}>{link.label}</a>
-                  </li>
-                ))}
-              </ul>
-            </Col>
-          </Row>
-        </div>
+        <Row className="border-top pt-4">
+          <Col className="text-center">
+            <p className="footer-copyright mb-0">
+              &copy; {currentYear} Hostel Connect. All rights reserved.
+            </p>
+          </Col>
+        </Row>
       </Container>
     </footer>
   );
 };
 
 // =============================================================================
-// EXAMPLE: Student Profile Component (Protected Route Example)
+// COMPONENT: Main Landing Page
 // =============================================================================
-const StudentProfile = () => {
-  const { user } = useAuth();
-  
+const LandingPage = () => {
   return (
-    <Container className="py-5 mt-5">
-      <h1 className="mb-4">
-        <i className="bi bi-person-circle me-2"></i>
-        My Profile
-      </h1>
-      <Row>
-        <Col md={6}>
-          <Card>
-            <Card.Body>
-              <h5>Account Information</h5>
-              <hr />
-              <p><strong>Name:</strong> {user?.name || 'N/A'}</p>
-              <p><strong>Email:</strong> {user?.email}</p>
-              <p><strong>Role:</strong> <span className="badge bg-primary">{user?.role}</span></p>
-              <p><strong>User ID:</strong> {user?.id}</p>
-            </Card.Body>
-          </Card>
-        </Col>
-      </Row>
-    </Container>
+    <div className="landing-page">
+      <Navigation />
+      <main>
+        <HeroSection />
+        <ProblemSection />
+        <HowItWorksSection />
+        <FeaturesSection />
+        <TrustSection />
+        <SafetyTipsSection />
+      </main>
+      <Footer />
+      <SkipLink />
+    </div>
   );
 };
 
 // =============================================================================
-// MAIN APP COMPONENT
+// COMPONENT: Main App
 // =============================================================================
-function App() {
+const App = () => {
   return (
-    <AuthProvider>
-      <Router>
-        <div className="App">
-          <SkipLink />
-          <Navigation />
-          <Suspense fallback={<LoadingFallback />}>
-            <Routes>
-              {/* Public Routes */}
-              <Route path="/" element={
-                <>
-                  <HeroSection />
-                  <ProblemSection />
-                  <SolutionSection />
-                  <HowItWorksSection />
-                  <FeaturesSection />
-                  <TrustSection />
-                  <CTASection />
-                  <Footer />
-                </>
-              } />
-              <Route path="/hostels" element={<Hostels />} />
-              <Route path="/hostels/:id" element={
-                <ProtectedRoute>
-                  <HostelDetails />
-                </ProtectedRoute>
-              } />
-              
-              {/* Public Auth Routes - Redirect to home if already authenticated */}
-              <Route path="/login" element={
-                <ProtectedRoute requireAuth={false}>
-                  <Login />
-                </ProtectedRoute>
-              } />
-              <Route path="/register" element={
-                <ProtectedRoute requireAuth={false}>
-                  <Register />
-                </ProtectedRoute>
-              } />
+    <Router>
+      <AuthProvider>
+        <Suspense fallback={<LoadingFallback />}>
+          <Routes>
+            {/* Public Routes */}
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/hostels" element={<Hostels />} />
+            <Route path="/hostels/:id" element={<HostelDetails />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/404" element={<NotFoundPage />} />
 
-              {/* Protected Routes - Student */}
-              <Route path="/profile" element={
-                <ProtectedRoute allowedRoles={['student', 'landlord', 'admin']}>
-                  <StudentProfile />
-                </ProtectedRoute>
-              } />
-
-              {/* Protected Routes - Landlord Only */}
-              <Route path="/landlord/dashboard/*" element={
-                <ProtectedRoute allowedRoles={['landlord']}>
+            {/* Protected Landlord Routes */}
+            <Route
+              path="/landlord/dashboard/*"
+              element={
+                <ProtectedRoute allowedRoles={['landlord', 'admin']}>
                   <LandlordDashboard />
                 </ProtectedRoute>
-              } />
+              }
+            />
 
-              {/* Protected Routes - Student Only */}
-              <Route path="/student/dashboard/*" element={
+            {/* Protected Student Routes */}
+            <Route
+              path="/student/dashboard/*"
+              element={
                 <ProtectedRoute allowedRoles={['student']}>
                   <StudentDashboard />
                 </ProtectedRoute>
-              } />
+              }
+            />
 
-              {/* Protected Routes - Admin Only */}
-              <Route path="/admin/dashboard" element={
+            {/* Protected Admin Routes */}
+            <Route
+              path="/admin/*"
+              element={
                 <ProtectedRoute allowedRoles={['admin']}>
                   <AdminDashboard />
                 </ProtectedRoute>
-              } />
-              <Route path="/admin/landlord-verification" element={
-                <ProtectedRoute allowedRoles={['admin']}>
-                  <AdminDashboard />
-                </ProtectedRoute>
-              } />
-              <Route path="/admin/hostel-verification" element={
-                <ProtectedRoute allowedRoles={['admin']}>
-                  <AdminDashboard />
-                </ProtectedRoute>
-              } />
-              <Route path="/admin/listings" element={
-                <ProtectedRoute allowedRoles={['admin']}>
-                  <AdminDashboard />
-                </ProtectedRoute>
-              } />
-              <Route path="/admin/reports" element={
-                <ProtectedRoute allowedRoles={['admin']}>
-                  <AdminDashboard />
-                </ProtectedRoute>
-              } />
-              <Route path="/admin/users" element={
-                <ProtectedRoute allowedRoles={['admin']}>
-                  <AdminDashboard />
-                </ProtectedRoute>
-              } />
-              <Route path="/admin/profile" element={
-                <ProtectedRoute allowedRoles={['admin']}>
-                  <AdminDashboard />
-                </ProtectedRoute>
-              } />
+              }
+            />
 
-              {/* 404 Page */}
-              <Route path="/404" element={<NotFoundPage />} />
-              <Route path="*" element={<Navigate to="/404" replace />} />
-            </Routes>
-          </Suspense>
-        </div>
-      </Router>
-    </AuthProvider>
+            {/* Redirect unknown routes to 404 */}
+            <Route path="*" element={<Navigate to="/404" replace />} />
+          </Routes>
+        </Suspense>
+      </AuthProvider>
+    </Router>
   );
-}
+};
 
 export default App;

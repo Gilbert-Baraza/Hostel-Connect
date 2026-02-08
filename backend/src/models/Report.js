@@ -52,6 +52,25 @@ const reportSchema = new mongoose.Schema({
 
 reportSchema.index({ status: 1, createdAt: -1 });
 
+reportSchema.pre('save', function(next) {
+  this._wasNew = this.isNew;
+  next();
+});
+
+reportSchema.post('save', function(doc) {
+  if (!doc || !doc._wasNew) return;
+  try {
+    const { queueAdminNotification } = require('../services/notificationService');
+    queueAdminNotification({
+      title: 'Flagged dispute reported',
+      message: `A new dispute was flagged for hostel ${doc.hostelId}. Reason: ${doc.reason}.`,
+      type: 'complaint'
+    });
+  } catch (error) {
+    console.error('Report notification error:', error);
+  }
+});
+
 const Report = mongoose.model('Report', reportSchema);
 
 module.exports = Report;

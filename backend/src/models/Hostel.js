@@ -128,8 +128,9 @@ hostelSchema.index({ name: 'text', description: 'text' });
 
 // Virtual for primary image
 hostelSchema.virtual('primaryImage').get(function() {
-  const primary = this.images.find(img => img.isPrimary);
-  return primary ? primary.url : (this.images[0]?.url || null);
+  console.log('[DEBUG] primaryImage virtual called, this.images:', this.images);
+  const primary = this.images && this.images.find ? this.images.find(img => img.isPrimary) : null;
+  return primary ? primary.url : (this.images?.[0]?.url || null);
 });
 
 // Pre-save middleware

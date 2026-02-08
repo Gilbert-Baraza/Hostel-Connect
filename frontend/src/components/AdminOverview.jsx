@@ -481,19 +481,23 @@ const DashboardOverview = ({ onNavigate }) => {
         }
 
         .stat-icon.bg-primary {
-          background: #3b82f6;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
         }
 
         .stat-icon.bg-info {
-          background: #0ea5e9;
+          background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+          box-shadow: 0 4px 15px rgba(79, 172, 254, 0.4);
         }
 
         .stat-icon.bg-success {
-          background: #22c55e;
+          background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);
+          box-shadow: 0 4px 15px rgba(132, 250, 176, 0.4);
         }
 
         .stat-icon.bg-warning {
-          background: #f59e0b;
+          background: linear-gradient(135deg, #f6d365 0%, #fda085 100%);
+          box-shadow: 0 4px 15px rgba(246, 211, 101, 0.4);
         }
 
         /* Stat Circles */

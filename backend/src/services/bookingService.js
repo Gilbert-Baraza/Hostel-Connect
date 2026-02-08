@@ -2,7 +2,81 @@ const mongoose = require('mongoose');
 const Booking = require('../models/Booking');
 const Room = require('../models/Room');
 const Hostel = require('../models/Hostel');
-const { validateFutureDates, calculateTotal, rangesOverlap } = require('../utils/dateOverlap');
+const { queueNotification } = require('./notificationService');
+
+const buildBookingLabel = (hostel, room) => {
+  const hostelName = hostel?.name || 'the hostel';
+  const roomLabel = room?.roomNumber ? `Room ${room.roomNumber}` : 'the selected room';
+  return `${hostelName} (${roomLabel})`;
+};
+
+const queueBookingSubmittedNotifications = ({ booking, hostel, room }) => {
+  if (!booking || !hostel || !room) return;
+
+  const bookingLabel = buildBookingLabel(hostel, room);
+  const studentId = booking.studentId?._id || booking.studentId;
+  const landlordId = hostel.landlordId;
+
+  if (studentId) {
+    queueNotification({
+      userId: studentId,
+      title: 'Booking request submitted',
+      message: `Your booking request for ${bookingLabel} was submitted and is awaiting approval.`,
+      type: 'booking'
+    });
+  }
+
+  if (landlordId) {
+    const studentName = booking.studentId?.name || 'A student';
+    queueNotification({
+      userId: landlordId,
+      title: 'New booking request',
+      message: `${studentName} submitted a booking request for ${bookingLabel}.`,
+      type: 'booking'
+    });
+  }
+};
+
+const queueBookingDecisionNotification = ({ booking, hostel }, action) => {
+  if (!booking || !hostel || !action) return;
+  const studentId = booking.studentId?._id || booking.studentId;
+  if (!studentId) return;
+
+  const hostelName = hostel?.name || 'the hostel';
+  const statusLabel = action === 'approve' ? 'approved' : 'rejected';
+
+  queueNotification({
+    userId: studentId,
+    title: `Booking ${statusLabel}`,
+    message: `Your booking request for ${hostelName} was ${statusLabel}.`,
+    type: 'booking'
+  });
+};
+
+const queueBookingCancellationNotifications = ({ booking, hostel }) => {
+  if (!booking || !hostel) return;
+  const studentId = booking.studentId?._id || booking.studentId;
+  const landlordId = hostel.landlordId;
+  const hostelName = hostel?.name || 'the hostel';
+
+  if (studentId) {
+    queueNotification({
+      userId: studentId,
+      title: 'Booking cancelled',
+      message: `Your booking request for ${hostelName} has been cancelled.`,
+      type: 'booking'
+    });
+  }
+
+  if (landlordId) {
+    queueNotification({
+      userId: landlordId,
+      title: 'Booking cancelled by student',
+      message: `A booking request for ${hostelName} was cancelled by the student.`,
+      type: 'booking'
+    });
+  }
+};
 
 /**
  * Booking Service - Business Logic Layer
@@ -19,81 +93,88 @@ const validateBookingInput = (data) => {
     errors.push('Start date is required');
   }
   
-  if (!data.endDate) {
-    errors.push('End date is required');
-  }
-  
-  if (data.startDate && data.endDate) {
-    const dateValidation = validateFutureDates(data.startDate, data.endDate);
-    if (!dateValidation.valid) {
-      errors.push(dateValidation.error);
-    }
-  }
-  
   return errors;
 };
 
 /**
  * Create booking with atomic conflict prevention
- * Uses MongoDB transaction to ensure consistency
+ * Uses MongoDB transaction when available (replica set); falls back otherwise.
  */
 const createBooking = async (roomId, studentId, bookingData, metadata = {}) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-  
-  try {
+  const MAX_RETRIES = 3;
+
+  const isRetryable = (error) => {
+    if (!error) return false;
+    if (error.errorLabels && error.errorLabels.includes('TransientTransactionError')) return true;
+    if (error.errorLabels && error.errorLabels.includes('UnknownTransactionCommitResult')) return true;
+    return error.code === 112 || `${error.message}`.toLowerCase().includes('write conflict');
+  };
+
+  const createBookingWithSession = async (session) => {
+    const sessionOption = session ? { session } : {};
     // 1. Get room with lock
-    const room = await Room.findById(roomId).session(session);
-    
+    const room = session
+      ? await Room.findById(roomId).session(session)
+      : await Room.findById(roomId);
+
     if (!room) {
       throw new Error('Room not found');
     }
-    
+
     // 2. Verify room is available
     if (!room.isActive) {
       throw new Error('Room is not active');
     }
-    
+
     if (!room.isAvailable) {
       throw new Error('Room is not available for booking');
     }
-    
+
     // 3. Get hostel
-    const hostel = await Hostel.findById(room.hostelId).session(session);
-    
+    const hostel = session
+      ? await Hostel.findById(room.hostelId).session(session)
+      : await Hostel.findById(room.hostelId);
+
     if (!hostel) {
       throw new Error('Hostel not found');
     }
-    
+
     if (hostel.verificationStatus !== 'approved') {
       throw new Error('Hostel is not approved for bookings');
     }
-    
-    // 4. Check for overlapping bookings (atomic)
-    const overlapping = await Booking.findOverlapping(
-      roomId,
-      bookingData.startDate,
-      bookingData.endDate
-    ).session(session);
-    
-    if (overlapping.length > 0) {
-      throw new Error('Room is not available for the selected dates');
+
+    // 4. Acquire per-room booking lock (write-conflict guard)
+      const lockResult = await Room.updateOne(
+        { _id: roomId },
+        { $inc: { bookingVersion: 1 } },
+        sessionOption
+      );
+
+    if (!lockResult || lockResult.modifiedCount !== 1) {
+      throw new Error('Unable to secure room for booking');
     }
-    
-    // 5. Calculate total amount
-    const dailyRate = room.price.amount / 30; // Convert monthly to daily
-    const totalAmount = calculateTotal(bookingData, dailyRate);
-    
-    // 6. Create booking
+
+    const startDate = new Date(bookingData.startDate);
+
+    // 5. Check for duplicate booking on same date (atomic)
+    const duplicateQuery = await Booking.findDuplicate(
+      roomId,
+      startDate
+    );
+    const duplicate = session ? duplicateQuery.session(session) : duplicateQuery;
+
+    if (duplicate.length > 0) {
+      throw new Error('Room is already booked for the selected date');
+    }
+
+    // 6. Create booking (no totalAmount - pay at reception)
     const booking = new Booking({
       studentId,
       hostelId: room.hostelId,
       roomId,
       bookingPeriod: {
-        startDate: bookingData.startDate,
-        endDate: bookingData.endDate
+        startDate
       },
-      totalAmount,
       status: 'pending',
       metadata: {
         source: metadata.source || 'web',
@@ -101,28 +182,58 @@ const createBooking = async (roomId, studentId, bookingData, metadata = {}) => {
         userAgent: metadata.userAgent
       }
     });
-    
-    await booking.save({ session });
-    
-    // 7. Lock room temporarily (but keep available for viewing)
-    // The room remains available but our transaction ensures no other
-    // booking can be created during this window
-    
-    // 8. Commit transaction
-    await session.commitTransaction();
-    session.endSession();
-    
+
+    await booking.save(sessionOption);
+
     // Populate for response
     await booking.populate('hostelId', 'name address');
     await booking.populate('roomId', 'roomNumber capacity');
     await booking.populate('studentId', 'name email');
-    
-    return booking;
-  } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
-    throw error;
+
+    return { booking, hostel, room };
+  };
+
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    const session = await mongoose.startSession();
+    try {
+      session.startTransaction();
+      const result = await createBookingWithSession(session);
+      await session.commitTransaction();
+      queueBookingSubmittedNotifications(result);
+      return result.booking;
+    } catch (error) {
+      try {
+        await session.abortTransaction();
+      } catch (abortError) {
+        // ignore abort errors
+      }
+
+      const message = `${error?.message || ''}`.toLowerCase();
+      const isTransactionUnsupported =
+        message.includes('transaction numbers are only allowed') ||
+        message.includes('replica set') ||
+        message.includes('mongos');
+
+      if (isTransactionUnsupported) {
+        session.endSession();
+        break;
+      }
+
+      if (attempt < MAX_RETRIES && isRetryable(error)) {
+        session.endSession();
+        continue;
+      }
+      session.endSession();
+      throw error;
+    } finally {
+      session.endSession();
+    }
   }
+
+  // Fallback: no transactions available (standalone MongoDB)
+  const result = await createBookingWithSession(null);
+  queueBookingSubmittedNotifications(result);
+  return result.booking;
 };
 
 /**
@@ -193,6 +304,8 @@ const getHostelBookings = async (hostelId, landlordId, options = {}) => {
   const query = { hostelId, isActive: true };
   if (status) {
     query.status = status;
+  } else {
+    query.status = { $in: ['pending', 'approved'] };
   }
   
   const [bookings, total] = await Promise.all([
@@ -222,7 +335,7 @@ const getHostelBookings = async (hostelId, landlordId, options = {}) => {
  */
 const getBookingById = async (bookingId, userId, role) => {
   const booking = await Booking.findById(bookingId)
-    .populate('hostelId', 'name address')
+    .populate('hostelId', 'name address landlordId')
     .populate('roomId', 'roomNumber capacity price')
     .populate('studentId', 'name email phone');
   
@@ -246,57 +359,106 @@ const getBookingById = async (bookingId, userId, role) => {
  */
 const decideBooking = async (bookingId, landlordId, action, reason) => {
   const session = await mongoose.startSession();
-  session.startTransaction();
-  
-  try {
-    const booking = await Booking.findById(bookingId).session(session);
-    
+
+  const decideWithSession = async (sessionToUse) => {
+    const sessionOption = sessionToUse ? { session: sessionToUse } : {};
+    const booking = sessionToUse
+      ? await Booking.findById(bookingId).session(sessionToUse)
+      : await Booking.findById(bookingId);
+
     if (!booking) {
       throw new Error('Booking not found');
     }
-    
+
     // Verify landlord owns the hostel
-    const hostel = await Hostel.findById(booking.hostelId).session(session);
-    
+    const hostel = sessionToUse
+      ? await Hostel.findById(booking.hostelId).session(sessionToUse)
+      : await Hostel.findById(booking.hostelId);
+
     if (hostel.landlordId.toString() !== landlordId) {
       throw new Error('Not authorized to make decisions on this booking');
     }
-    
+
     if (!booking.canBeDecided()) {
       throw new Error('Booking cannot be decided at this time');
     }
-    
+
+    const sanitizedReason = reason ? String(reason).trim() : undefined;
+
     if (action === 'approve') {
+      const room = sessionToUse
+        ? await Room.findById(booking.roomId).session(sessionToUse)
+        : await Room.findById(booking.roomId);
+      if (!room || !room.isActive || !room.isAvailable) {
+        throw new Error('Room is not available for approval');
+      }
+
+      // Check if room is already booked for this date
+      const duplicateQuery = await Booking.findDuplicate(
+        booking.roomId,
+        booking.bookingPeriod.startDate,
+        booking._id
+      );
+      const duplicate = sessionToUse
+        ? duplicateQuery.session(sessionToUse)
+        : duplicateQuery;
+
+      if (duplicate.length > 0) {
+        throw new Error('Room is already booked for this date');
+      }
+
       booking.status = 'approved';
-      
+
       // Lock the room
       await Room.findByIdAndUpdate(
         booking.roomId,
         { isAvailable: false },
-        { session }
+        sessionOption
       );
     } else if (action === 'reject') {
       booking.status = 'rejected';
     } else {
       throw new Error('Invalid action');
     }
-    
+
     booking.decision = {
       decidedBy: landlordId,
       decidedAt: new Date(),
-      reason
+      reason: sanitizedReason
     };
-    
-    await booking.save({ session });
-    
+
+    await booking.save(sessionOption);
+    return { booking, hostel };
+  };
+
+  try {
+    session.startTransaction();
+    const result = await decideWithSession(session);
     await session.commitTransaction();
-    session.endSession();
-    
-    return booking;
+    queueBookingDecisionNotification(result, action);
+    return result.booking;
   } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
+    try {
+      await session.abortTransaction();
+    } catch (abortError) {
+      // ignore abort errors
+    }
+
+    const message = `${error?.message || ''}`.toLowerCase();
+    const isTransactionUnsupported =
+      message.includes('transaction numbers are only allowed') ||
+      message.includes('replica set') ||
+      message.includes('mongos');
+
+    if (isTransactionUnsupported) {
+      const result = await decideWithSession(null);
+      queueBookingDecisionNotification(result, action);
+      return result.booking;
+    }
+
     throw error;
+  } finally {
+    session.endSession();
   }
 };
 
@@ -305,50 +467,79 @@ const decideBooking = async (bookingId, landlordId, action, reason) => {
  */
 const cancelBooking = async (bookingId, studentId, reason) => {
   const session = await mongoose.startSession();
-  session.startTransaction();
-  
-  try {
-    const booking = await Booking.findById(bookingId).session(session);
-    
+
+  const cancelWithSession = async (sessionToUse) => {
+    const sessionOption = sessionToUse ? { session: sessionToUse } : {};
+    const booking = sessionToUse
+      ? await Booking.findById(bookingId).session(sessionToUse)
+      : await Booking.findById(bookingId);
+
     if (!booking) {
       throw new Error('Booking not found');
     }
-    
+
     // Verify ownership
     if (booking.studentId.toString() !== studentId) {
       throw new Error('Not authorized to cancel this booking');
     }
-    
+
     if (!booking.canBeCancelled()) {
       throw new Error('Booking cannot be cancelled at this time');
     }
-    
+
+    const wasApproved = booking.status === 'approved';
+    const hostel = sessionToUse
+      ? await Hostel.findById(booking.hostelId).session(sessionToUse)
+      : await Hostel.findById(booking.hostelId);
+
     booking.status = 'cancelled';
     booking.cancellation = {
       cancelledBy: studentId,
       cancelledAt: new Date(),
-      reason
+      reason: reason ? String(reason).trim() : undefined
     };
-    
+
     // If approved, release the room
-    if (booking.status === 'approved') {
+    if (wasApproved) {
       await Room.findByIdAndUpdate(
         booking.roomId,
         { isAvailable: true },
-        { session }
+        sessionOption
       );
     }
-    
-    await booking.save({ session });
-    
+
+    await booking.save(sessionOption);
+    return { booking, hostel };
+  };
+
+  try {
+    session.startTransaction();
+    const result = await cancelWithSession(session);
     await session.commitTransaction();
-    session.endSession();
-    
-    return booking;
+    queueBookingCancellationNotifications(result);
+    return result.booking;
   } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
+    try {
+      await session.abortTransaction();
+    } catch (abortError) {
+      // ignore abort errors
+    }
+
+    const message = `${error?.message || ''}`.toLowerCase();
+    const isTransactionUnsupported =
+      message.includes('transaction numbers are only allowed') ||
+      message.includes('replica set') ||
+      message.includes('mongos');
+
+    if (isTransactionUnsupported) {
+      const result = await cancelWithSession(null);
+      queueBookingCancellationNotifications(result);
+      return result.booking;
+    }
+
     throw error;
+  } finally {
+    session.endSession();
   }
 };
 
@@ -357,42 +548,64 @@ const cancelBooking = async (bookingId, studentId, reason) => {
  */
 const forceCancelBooking = async (bookingId, adminId, reason) => {
   const session = await mongoose.startSession();
-  session.startTransaction();
-  
-  try {
-    const booking = await Booking.findById(bookingId).session(session);
-    
+
+  const forceCancelWithSession = async (sessionToUse) => {
+    const sessionOption = sessionToUse ? { session: sessionToUse } : {};
+    const booking = sessionToUse
+      ? await Booking.findById(bookingId).session(sessionToUse)
+      : await Booking.findById(bookingId);
+
     if (!booking) {
       throw new Error('Booking not found');
     }
-    
+
+    const wasApproved = booking.status === 'approved';
     booking.status = 'cancelled';
     booking.isActive = false;
     booking.cancellation = {
       cancelledBy: adminId,
       cancelledAt: new Date(),
-      reason
+      reason: reason ? String(reason).trim() : undefined
     };
-    
+
     // Release room if it was approved
-    if (booking.status === 'approved') {
+    if (wasApproved) {
       await Room.findByIdAndUpdate(
         booking.roomId,
         { isAvailable: true },
-        { session }
+        sessionOption
       );
     }
-    
-    await booking.save({ session });
-    
+
+    await booking.save(sessionOption);
+    return booking;
+  };
+
+  try {
+    session.startTransaction();
+    const booking = await forceCancelWithSession(session);
     await session.commitTransaction();
-    session.endSession();
-    
     return booking;
   } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
+    try {
+      await session.abortTransaction();
+    } catch (abortError) {
+      // ignore abort errors
+    }
+
+    const message = `${error?.message || ''}`.toLowerCase();
+    const isTransactionUnsupported =
+      message.includes('transaction numbers are only allowed') ||
+      message.includes('replica set') ||
+      message.includes('mongos');
+
+    if (isTransactionUnsupported) {
+      return forceCancelWithSession(null);
+    }
+
     throw error;
+  } finally {
+    session.endSession();
   }
 };
 
@@ -401,7 +614,16 @@ const forceCancelBooking = async (bookingId, adminId, reason) => {
  */
 const expireOldBookings = async () => {
   const now = new Date();
-  
+
+  const expiringBookings = await Booking.find({
+    status: 'pending',
+    expiresAt: { $lt: now },
+    isActive: true
+  })
+    .populate('hostelId', 'name')
+    .select('studentId hostelId bookingPeriod')
+    .lean();
+
   const result = await Booking.updateMany(
     {
       status: 'pending',
@@ -415,7 +637,19 @@ const expireOldBookings = async () => {
       }
     }
   );
-  
+
+  expiringBookings.forEach((booking) => {
+    const studentId = booking.studentId;
+    const hostelName = booking.hostelId?.name || 'the hostel';
+    if (!studentId) return;
+    queueNotification({
+      userId: studentId,
+      title: 'Booking expired',
+      message: `Your booking request for ${hostelName} has expired. Please submit a new request if needed.`,
+      type: 'booking'
+    });
+  });
+
   return result.modifiedCount;
 };
 
@@ -426,7 +660,7 @@ const getAllBookings = async (options = {}) => {
   const { page = 1, limit = 20, status, hostelId } = options;
   const skip = (page - 1) * limit;
   
-  const query = { isActive: true };
+  const query = {};
   if (status) query.status = status;
   if (hostelId) query.hostelId = hostelId;
   

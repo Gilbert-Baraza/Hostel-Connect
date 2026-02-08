@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Row, Col, Card, Button, Alert, Badge } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 import { getSavedHostels } from '../api/student';
@@ -27,10 +27,10 @@ const DashboardHome = ({ user }) => {
   });
   const [statsLoading, setStatsLoading] = useState(true);
   const [statsError, setStatsError] = useState(null);
+  const isMountedRef = useRef(true);
+  const refreshIntervalMs = 20000;
 
   useEffect(() => {
-    let isMounted = true;
-
     const normalizeStatus = (status) => {
       if (status === 'approved' || status === 'pending' || status === 'rejected') {
         return status;
@@ -39,9 +39,12 @@ const DashboardHome = ({ user }) => {
       return 'rejected';
     };
 
-    const fetchStats = async () => {
-      setStatsLoading(true);
-      setStatsError(null);
+    const fetchStats = async (options = {}) => {
+      const { silent = false } = options;
+      if (!silent) {
+        setStatsLoading(true);
+        setStatsError(null);
+      }
       try {
         const [savedResponse, bookingsResponse] = await Promise.all([
           getSavedHostels(),
@@ -58,24 +61,40 @@ const DashboardHome = ({ user }) => {
           approvedRequests: statuses.filter((status) => status === 'approved').length
         };
 
-        if (isMounted) {
+        if (isMountedRef.current) {
           setStats(nextStats);
         }
       } catch (error) {
-        if (isMounted) {
+        if (!silent && isMountedRef.current) {
           setStatsError(error?.message || 'Failed to load dashboard stats');
         }
       } finally {
-        if (isMounted) {
+        if (!silent && isMountedRef.current) {
           setStatsLoading(false);
         }
       }
     };
 
     fetchStats();
+    const intervalId = setInterval(() => {
+      fetchStats({ silent: true });
+    }, refreshIntervalMs);
+
+    const handleFocus = () => fetchStats({ silent: true });
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        fetchStats({ silent: true });
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibility);
 
     return () => {
-      isMounted = false;
+      isMountedRef.current = false;
+      clearInterval(intervalId);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, []);
 
@@ -101,12 +120,12 @@ const DashboardHome = ({ user }) => {
       {/* Verification Status Card */}
       <Row className="mb-4">
         <Col lg={8}>
-          <Card className="border-0 shadow-sm">
-            <Card.Header className="bg-white d-flex align-items-center">
-              <i className="bi bi-shield-check fs-5 text-success me-2"></i>
-              <span className="fw-bold">Account Verification Status</span>
+          <Card className="border-0 shadow-sm" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+            <Card.Header className="bg-transparent d-flex align-items-center border-0">
+              <i className="bi bi-shield-check fs-5 text-white me-2"></i>
+              <span className="fw-bold text-white">Account Verification Status</span>
               {verificationStatus.accountStatus === 'verified' ? (
-                <Badge bg="success" className="ms-auto">Verified</Badge>
+                <Badge bg="light" className="ms-auto text-dark">Verified</Badge>
               ) : (
                 <Badge bg="warning" className="ms-auto">Pending</Badge>
               )}
@@ -114,29 +133,29 @@ const DashboardHome = ({ user }) => {
             <Card.Body>
               <Row className="g-3">
                 <Col xs={12} sm={4}>
-                  <div className="d-flex align-items-center">
-                    <i className={`bi ${verificationStatus.emailVerified ? 'bi-check-circle-fill text-success' : 'bi-x-circle-fill text-danger'} fs-5 me-2`}></i>
+                  <div className="d-flex align-items-center bg-white bg-opacity-10 rounded p-2">
+                    <i className={`bi ${verificationStatus.emailVerified ? 'bi-check-circle-fill' : 'bi-x-circle-fill'} fs-5 me-2`} style={{ color: verificationStatus.emailVerified ? '#84fab0' : '#ff9a9e' }}></i>
                     <div>
-                      <small className="text-muted d-block">Email</small>
-                      <span className="fw-medium">Verified</span>
+                      <small className="text-white-50 d-block">Email</small>
+                      <span className="fw-medium text-white">Verified</span>
                     </div>
                   </div>
                 </Col>
                 <Col xs={12} sm={4}>
-                  <div className="d-flex align-items-center">
-                    <i className={`bi ${verificationStatus.phoneVerified ? 'bi-check-circle-fill text-success' : 'bi-x-circle-fill text-danger'} fs-5 me-2`}></i>
+                  <div className="d-flex align-items-center bg-white bg-opacity-10 rounded p-2">
+                    <i className={`bi ${verificationStatus.phoneVerified ? 'bi-check-circle-fill' : 'bi-x-circle-fill'} fs-5 me-2`} style={{ color: verificationStatus.phoneVerified ? '#84fab0' : '#ff9a9e' }}></i>
                     <div>
-                      <small className="text-muted d-block">Phone</small>
-                      <span className="fw-medium">Verified</span>
+                      <small className="text-white-50 d-block">Phone</small>
+                      <span className="fw-medium text-white">Verified</span>
                     </div>
                   </div>
                 </Col>
                 <Col xs={12} sm={4}>
-                  <div className="d-flex align-items-center">
-                    <i className={`bi ${verificationStatus.identityVerified ? 'bi-check-circle-fill text-success' : 'bi-x-circle-fill text-danger'} fs-5 me-2`}></i>
+                  <div className="d-flex align-items-center bg-white bg-opacity-10 rounded p-2">
+                    <i className={`bi ${verificationStatus.identityVerified ? 'bi-check-circle-fill' : 'bi-x-circle-fill'} fs-5 me-2`} style={{ color: verificationStatus.identityVerified ? '#84fab0' : '#ff9a9e' }}></i>
                     <div>
-                      <small className="text-muted d-block">Identity</small>
-                      <span className="fw-medium">Verified</span>
+                      <small className="text-white-50 d-block">Identity</small>
+                      <span className="fw-medium text-white">Verified</span>
                     </div>
                   </div>
                 </Col>
@@ -184,34 +203,34 @@ const DashboardHome = ({ user }) => {
       <Row className="mb-4 g-3">
         <Col xs={12} sm={4}>
           <Card className="border-0 shadow-sm h-100">
-            <Card.Body className="text-center">
+            <Card.Body className="text-center" style={{ background: 'linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%)' }}>
               <div className="icon-box icon-box-primary mx-auto mb-3">
                 <i className="bi bi-heart-fill"></i>
               </div>
-              <h3 className="fw-bold mb-1">{statsLoading ? '...' : stats.savedHostels}</h3>
-              <p className="text-muted mb-0">Saved Hostels</p>
+              <h3 className="fw-bold text-white mb-1">{statsLoading ? '...' : stats.savedHostels}</h3>
+              <p className="text-white-50 mb-0">Saved Hostels</p>
             </Card.Body>
           </Card>
         </Col>
         <Col xs={12} sm={4}>
           <Card className="border-0 shadow-sm h-100">
-            <Card.Body className="text-center">
+            <Card.Body className="text-center" style={{ background: 'linear-gradient(135deg, #f6d365 0%, #fda085 100%)' }}>
               <div className="icon-box icon-box-warning mx-auto mb-3">
                 <i className="bi bi-clock-history"></i>
               </div>
-              <h3 className="fw-bold mb-1">{statsLoading ? '...' : stats.pendingRequests}</h3>
-              <p className="text-muted mb-0">Pending Requests</p>
+              <h3 className="fw-bold text-white mb-1">{statsLoading ? '...' : stats.pendingRequests}</h3>
+              <p className="text-white-50 mb-0">Pending Requests</p>
             </Card.Body>
           </Card>
         </Col>
         <Col xs={12} sm={4}>
           <Card className="border-0 shadow-sm h-100">
-            <Card.Body className="text-center">
+            <Card.Body className="text-center" style={{ background: 'linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%)' }}>
               <div className="icon-box icon-box-success mx-auto mb-3">
                 <i className="bi bi-check-circle"></i>
               </div>
-              <h3 className="fw-bold mb-1">{statsLoading ? '...' : stats.approvedRequests}</h3>
-              <p className="text-muted mb-0">Approved Requests</p>
+              <h3 className="fw-bold text-white mb-1">{statsLoading ? '...' : stats.approvedRequests}</h3>
+              <p className="text-white-50 mb-0">Approved Requests</p>
             </Card.Body>
           </Card>
         </Col>
@@ -270,13 +289,46 @@ const DashboardHome = ({ user }) => {
 
         .quick-action-card:hover {
           transform: translateY(-2px);
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+        }
+
+        .quick-action-card:nth-child(1) {
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .quick-action-card:nth-child(1) .text-primary {
+          color: #667eea !important;
+        }
+        .quick-action-card:nth-child(1) h6,
+        .quick-action-card:nth-child(1) p {
+          color: #fff !important;
+        }
+        
+        .quick-action-card:nth-child(2) {
+          background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+        .quick-action-card:nth-child(2) .text-danger {
+          color: #f5576c !important;
+        }
+        .quick-action-card:nth-child(2) h6,
+        .quick-action-card:nth-child(2) p {
+          color: #fff !important;
+        }
+        
+        .quick-action-card:nth-child(3) {
+          background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        }
+        .quick-action-card:nth-child(3) .text-warning {
+          color: #f6ad55 !important;
+        }
+        .quick-action-card:nth-child(3) h6,
+        .quick-action-card:nth-child(3) p {
+          color: #fff !important;
         }
 
         .icon-box {
           width: 60px;
           height: 60px;
-          border-radius: 12px;
+          border-radius: 16px;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -284,18 +336,21 @@ const DashboardHome = ({ user }) => {
         }
 
         .icon-box-primary {
-          background: rgba(26, 95, 122, 0.1);
-          color: #1a5f7a;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: white;
+          box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
         }
 
         .icon-box-warning {
-          background: rgba(255, 193, 7, 0.1);
-          color: #ffc107;
+          background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+          color: white;
+          box-shadow: 0 4px 15px rgba(245, 87, 108, 0.4);
         }
 
         .icon-box-success {
-          background: rgba(25, 135, 84, 0.1);
-          color: #198754;
+          background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+          color: white;
+          box-shadow: 0 4px 15px rgba(79, 172, 254, 0.4);
         }
       `}</style>
     </>

@@ -93,7 +93,7 @@ const Login = () => {
         ? '/admin/dashboard'
         : role === 'landlord'
           ? '/landlord/dashboard'
-          : '/hostels';
+          : '/student/dashboard';
       const redirectTo = location.state?.from?.pathname || defaultRedirect;
       navigate(redirectTo, { replace: true });
     } else {

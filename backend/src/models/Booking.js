@@ -26,10 +26,6 @@ const bookingSchema = new mongoose.Schema({
     startDate: {
       type: Date,
       required: [true, 'Start date is required']
-    },
-    endDate: {
-      type: Date,
-      required: [true, 'End date is required']
     }
   },
   status: {
@@ -84,11 +80,13 @@ const bookingSchema = new mongoose.Schema({
     default: 1
   }
 }, {
-  timestamps: true
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
 });
 
 // Compound indexes
-bookingSchema.index({ roomId: 1, 'bookingPeriod.startDate': 1, 'bookingPeriod.endDate': 1 });
+bookingSchema.index({ roomId: 1, 'bookingPeriod.startDate': 1 });
 bookingSchema.index({ studentId: 1, createdAt: -1 });
 bookingSchema.index({ hostelId: 1, status: 1 });
 bookingSchema.index({ studentId: 1, status: 1, isActive: 1 });
@@ -98,9 +96,10 @@ bookingSchema.index({ studentId: 1, status: 1, isActive: 1 });
 
 // Pre-save validation
 bookingSchema.pre('save', function(next) {
-  // Validate dates
-  if (this.bookingPeriod.startDate >= this.bookingPeriod.endDate) {
-    return next(new Error('End date must be after start date'));
+  // Validate start date is in the future
+  const now = new Date();
+  if (this.bookingPeriod.startDate <= now) {
+    return next(new Error('Start date must be in the future'));
   }
   
   // Calculate expiry (24 hours from creation if pending)
@@ -123,20 +122,18 @@ bookingSchema.methods.canBeDecided = function() {
   return this.status === 'pending';
 };
 
-// Static method to find overlapping bookings
-bookingSchema.statics.findOverlapping = async function(roomId, startDate, endDate, excludeBookingId = null) {
+// Virtuals for easier access
+bookingSchema.virtual('startDate').get(function() {
+  return this.bookingPeriod?.startDate;
+});
+
+// Static method to check for duplicate booking on same date
+bookingSchema.statics.findDuplicate = async function(roomId, startDate, excludeBookingId = null) {
   const query = {
     roomId,
     isActive: true,
     status: { $in: ['pending', 'approved'] },
-    $or: [
-      // New booking starts during existing booking
-      { 'bookingPeriod.startDate': { $lte: startDate }, 'bookingPeriod.endDate': { $gte: startDate } },
-      // New booking ends during existing booking
-      { 'bookingPeriod.startDate': { $lte: endDate }, 'bookingPeriod.endDate': { $gte: endDate } },
-      // New booking completely contains existing booking
-      { 'bookingPeriod.startDate': { $gte: startDate }, 'bookingPeriod.endDate': { $lte: endDate } }
-    ]
+    'bookingPeriod.startDate': { $eq: new Date(startDate) }
   };
   
   if (excludeBookingId) {

@@ -13,6 +13,9 @@ const bookingRoutes = require('./routes/bookingRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const studentRoutes = require('./routes/studentRoutes');
+const geocodeRoutes = require('./routes/geocodeRoutes');
+const reviewRoutes = require('./routes/reviewRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
 
 // Create Express app
 const app = express();
@@ -71,6 +74,9 @@ app.use('/api', roomRoutes);
 app.use('/api', bookingRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/students', studentRoutes);
+app.use('/api', geocodeRoutes);
+app.use('/api', reviewRoutes);
+app.use('/api', notificationRoutes);
 
 // 404 handler
 app.use((req, res) => {
