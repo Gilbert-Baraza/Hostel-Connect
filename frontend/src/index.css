@@ -423,6 +423,23 @@
    HOSTEL LISTINGS PAGE STYLES
    ========================================================================== */
 
+/* Hostels Page Layout */
+.hostels-page {
+  min-height: 100vh;
+  background: var(--light-bg);
+}
+
+.hostels-page .hostels-main {
+  margin-left: 0;
+  transition: margin-left 0.3s ease;
+}
+
+@media (min-width: 992px) {
+  .hostels-page .hostels-main {
+    margin-left: 260px;
+  }
+}
+
 /* Page Header Section */
 .page-header-section {
   background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-light) 100%);
